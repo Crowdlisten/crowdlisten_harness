@@ -1,0 +1,41 @@
+{
+  "name": "@crowdlisten/kanban-mcp",
+  "version": "0.1.5",
+  "description": "CrowdListen Kanban MCP Server — connect any coding agent to your CrowdListen task board",
+  "type": "module",
+  "bin": {
+    "kanban-mcp": "dist/index.js",
+    "crowdlisten-kanban-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@supabase/supabase-js": "^2.49.4"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "@types/node": "^22.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "keywords": [
+    "mcp",
+    "kanban",
+    "coding-agent",
+    "crowdlisten",
+    "vibe-kanban"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/terrylinhaochen/crowdlistening.git"
+  },
+  "homepage": "https://crowdlisten.com"
+}
