@@ -1,7 +1,8 @@
 /**
- * CrowdListen Kanban MCP - Business Logic Module
+ * CrowdListen Tasks — Planning and Delegation Business Logic
  *
  * All pure functions, tool handlers, and Supabase interaction logic.
+ * Routes executable work to coding agents with project context intact.
  * Extracted from index.ts for testability.
  */
 

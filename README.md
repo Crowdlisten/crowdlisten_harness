@@ -1,6 +1,8 @@
-# CrowdListen Kanban
+# CrowdListen Tasks
 
-> Connect any coding agent to a kanban board. One command to set up. Works with Claude Code, Cursor, Gemini CLI, Codex, Amp, and more.
+> Planning and task delegation for AI agents. Decompose specs into executable work, route to coding agents with project context intact. Works with Claude Code, Cursor, Gemini CLI, Codex, Amp, and more.
+
+Part of the [CrowdListen](https://crowdlisten.com) system: **Feed** captures cross-channel audience signal → **Workspace** converts signal into validated decisions → **Tasks** (this repo) routes executable work to coding agents with context intact.
 
 ## Setup
 
@@ -17,11 +19,11 @@ No env vars. No JSON to copy. No API keys.
 1. Your browser opens to CrowdListen's sign-in page
 2. You log in (email/password or Google)
 3. The CLI auto-detects and configures your coding agents
-4. Restart your agent — it can now see your kanban board and work on tasks
+4. Restart your agent — it can now see tasks and start working with full project context
 
 ## What your agent can do
 
-All tasks go to **one global board** by default. No need to manage projects or boards.
+Tasks are decomposed into executable work and routed with project context. All tasks go to **one global board** by default — no overhead managing projects or boards.
 
 | Tool | Description |
 |------|-------------|
@@ -123,7 +125,7 @@ npm cache clean --force && npx --yes @crowdlisten/kanban@latest login
 
 ## Contributing
 
-Issues and PRs welcome. This is part of the [CrowdListen](https://crowdlisten.com) open source ecosystem — see also [crowdlisten_sources](https://github.com/Crowdlisten/crowdlisten_sources) for social media extraction.
+Issues and PRs welcome. This is part of the [CrowdListen](https://crowdlisten.com) open source ecosystem — see also [crowdlisten_sources](https://github.com/Crowdlisten/crowdlisten_sources) for cross-channel feedback analysis.
 
 ## License
 

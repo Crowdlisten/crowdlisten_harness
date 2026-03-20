@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 
 /**
- * CrowdListen Kanban CLI + MCP Server
+ * CrowdListen Tasks — Planning and Task Delegation for AI Agents
  *
- * Connects any MCP-compatible coding agent (Claude Code, Cursor, Gemini CLI,
- * Codex, OpenClaw, Amp, etc.) to your CrowdListen task board.
+ * Decomposes specs into executable work and routes tasks to coding agents
+ * (Claude Code, Cursor, Gemini CLI, Codex, OpenClaw, Amp, etc.) with project
+ * context intact. Closes the loop between product intent and implementation.
  *
  * First time:  npx @crowdlisten/kanban login
  * Then add to your agent config and go.
