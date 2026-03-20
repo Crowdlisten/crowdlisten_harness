@@ -1,6 +1,6 @@
-# CrowdListen Kanban MCP Server
+# CrowdListen Kanban MCP
 
-Connect any coding agent to your CrowdListen task board.
+> Connect any coding agent to a kanban board. One command to set up. Works with Claude Code, Cursor, Gemini CLI, Codex, Amp, and more.
 
 ## Setup
 
@@ -8,7 +8,7 @@ Connect any coding agent to your CrowdListen task board.
 npx @crowdlisten/kanban-mcp login
 ```
 
-That's it. Your browser opens, you sign in to CrowdListen (email, Google, whatever you use), and it **auto-configures** any coding agents on your machine. Just restart your agent.
+That's it. Your browser opens, you sign in to [CrowdListen](https://crowdlisten.com) (email, Google, whatever you use), and it **auto-configures** any coding agents on your machine. Just restart your agent.
 
 No env vars. No JSON to copy. No API keys.
 
@@ -99,6 +99,21 @@ npx @crowdlisten/kanban-mcp logout   # Clear credentials
 npx @crowdlisten/kanban-mcp whoami   # Check current user
 ```
 
+## Multi-user
+
+Each person logs in with their own CrowdListen account. Row-level security means they only see their own data. Multiple users can work on shared projects simultaneously.
+
+## Development
+
+```bash
+git clone https://github.com/Crowdlisten/crowdlisten_tasks_mcp.git
+cd crowdlisten_tasks_mcp
+npm install
+npm run build
+npm run dev     # Run with tsx
+npm test        # Vitest
+```
+
 ## Troubleshooting
 
 **"command not found" on first run?**
@@ -106,6 +121,10 @@ npx @crowdlisten/kanban-mcp whoami   # Check current user
 npm cache clean --force && npx --yes @crowdlisten/kanban-mcp@latest login
 ```
 
-## Multi-user
+## Contributing
 
-Each person logs in with their own CrowdListen account. Row-level security means they only see their own data. Multiple users can work on shared projects simultaneously.
+Issues and PRs welcome. This is part of the [CrowdListen](https://crowdlisten.com) open source ecosystem — see also [crowdlisten_sources_mcp](https://github.com/Crowdlisten/crowdlisten_sources_mcp) for social media extraction.
+
+## License
+
+MIT

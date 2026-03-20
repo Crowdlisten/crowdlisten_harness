@@ -10,7 +10,11 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
@@ -19,11 +23,14 @@
   "devDependencies": {
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
-    "@types/node": "^22.0.0"
+    "@types/node": "^22.0.0",
+    "vitest": "^3.0.0",
+    "@vitest/coverage-v8": "^3.0.0"
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "keywords": [
     "mcp",
@@ -35,7 +42,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/terrylinhaochen/crowdlisten_tasks_mcp.git"
+    "url": "https://github.com/Crowdlisten/crowdlisten_tasks_mcp.git"
   },
   "homepage": "https://crowdlisten.com"
 }
