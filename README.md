@@ -1,8 +1,10 @@
-# CrowdListen Tasks
+# CrowdListen Planner
 
-> A planning and delegation system for AI agents. Plan before you build, capture knowledge as you go, compound learnings across tasks. Works with Claude Code, Cursor, Gemini CLI, Codex, Amp, and more.
+> A planning and delegation system for AI agents. Plan before you build, capture knowledge as you go, compound learnings across tasks.
 
-Part of the [CrowdListen](https://crowdlisten.com) system: **Feed** captures cross-channel audience signal → **Workspace** converts signal into validated decisions → **Tasks** (this repo) gives agents a planning harness with cloud-synced context.
+Works with Claude Code, Cursor, Gemini CLI, Codex, Amp, and any MCP-compatible agent.
+
+Part of the [CrowdListen](https://crowdlisten.com) system: **Feed** captures cross-channel audience signal → **Workspace** converts signal into validated decisions → **Planner** (this repo) gives agents a planning harness with cloud-synced context.
 
 ## Setup
 
@@ -10,20 +12,74 @@ Part of the [CrowdListen](https://crowdlisten.com) system: **Feed** captures cro
 npx @crowdlisten/planner login
 ```
 
-That's it. Your browser opens, you sign in to [CrowdListen](https://crowdlisten.com) (email, Google, whatever you use), and it **auto-configures** any coding agents on your machine. Just restart your agent.
+Your browser opens, you sign in to [CrowdListen](https://crowdlisten.com), and it **auto-configures** any coding agents on your machine. Just restart your agent.
 
 No env vars. No JSON to copy. No API keys.
 
-## The idea
+---
+
+## Why This Exists
 
 Most agent tooling gives agents a task list and says "go." That's like handing a contractor a list of rooms to paint without telling them the color, the budget, or that the client hates eggshell finish.
 
-CrowdListen Tasks flips this. It's a **planning harness** — not a task board that happens to have plans, but a planning system that happens to have tasks. The identity shift matters:
+CrowdListen Planner flips this. It's a **planning harness** — not a task board that happens to have plans, but a planning system that happens to have tasks.
 
 **Before**: Task → Execute → Hope it's right
 **After**: Task → Plan → Get feedback → Execute with context → Capture what you learned → Next task is smarter
 
-### Three layers
+Inspired by [Harness Engineering](https://openai.com/index/harness-engineering/) (constraints as product, phase separation, mechanical gates) and [gruAI](https://github.com/andrew-yangy/gru-ai) (institutional memory, pipeline architecture, progressive disclosure).
+
+---
+
+## Architecture
+
+```mermaid
+graph TD
+    subgraph Human["Human Layer"]
+        H_Create["Create Task"]
+        H_Review["Review Plan"]
+        H_Feedback["Leave Feedback"]
+        H_Approve["Approve Plan"]
+    end
+
+    subgraph Pipeline["Agent Pipeline"]
+        Claim["claim_task<br/>← semantic map<br/>← knowledge base<br/>← existing plan"]
+        Query["query_context<br/>Search decisions, patterns,<br/>constraints, learnings"]
+        Plan["create_plan<br/>approach, assumptions,<br/>success criteria, risks"]
+        Review["update_plan → status: review"]
+        Iterate["update_plan<br/>Incorporate feedback,<br/>version archived"]
+        Execute["update_plan → status: executing<br/>Agent works on task"]
+        Capture["add_context + record_learning<br/>Decisions, patterns, learnings"]
+        Complete["complete_task<br/>Plan auto-completed"]
+    end
+
+    subgraph Knowledge["Knowledge Base (Supabase)"]
+        KB["planning_context<br/>──────────────<br/>decisions │ constraints<br/>preferences │ patterns<br/>learnings │ principles"]
+        Versions["planning_context_versions<br/>──────────────<br/>Immutable snapshots<br/>of every plan revision"]
+    end
+
+    H_Create --> Claim
+    Claim --> Query
+    Query --> Plan
+    Plan --> Review
+    Review --> H_Review
+    H_Review --> H_Feedback
+    H_Feedback --> Iterate
+    H_Review --> H_Approve
+    H_Approve --> Execute
+    Iterate --> Review
+    Execute --> Capture
+    Capture --> Complete
+
+    KB -.->|context flows in| Claim
+    KB -.->|search| Query
+    Capture -.->|knowledge flows out| KB
+    Plan -.->|stored as| KB
+    Iterate -.->|archived to| Versions
+    Complete -.->|next task inherits| KB
+```
+
+### Three Layers
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -40,17 +96,26 @@ CrowdListen Tasks flips this. It's a **planning harness** — not a task board t
 └─────────────────────────────────────────────────┘
 ```
 
-**Knowledge compounds.** When an agent finishes a task and records "TOTP library X was 3x faster than Y," that learning shows up in the context for the next agent that claims a task on the same project. Decisions don't get relitigated. Patterns don't get reinvented. Mistakes don't get repeated.
+### Design Principles
 
-**Plans are reviewable.** A human can read the plan, leave feedback ("also handle 2FA"), and the plan auto-reverts to draft for the agent to iterate on. No more reviewing 500 lines of code that went in the wrong direction.
+These principles are drawn from patterns in harness engineering and multi-agent orchestration research:
 
-**Context is cloud-synced.** The knowledge base lives in Supabase, not in a local file. Claude Code, Cursor, Codex, and any other MCP-compatible agent all read and write to the same context. Start a task in Claude Code, continue it in Cursor — the context follows.
+| Principle | What It Means | How We Apply It |
+|-----------|--------------|-----------------|
+| **Phase separation** | Research, plan, execute, and review are distinct phases with distinct outputs | Plans must be approved before execution. Feedback reverts to draft. No skipping ahead. |
+| **Knowledge compounds** | Every task should leave the system smarter than it found it | `record_learning` captures outcomes. Promoted learnings persist at project level for future tasks. |
+| **Constraints as product** | The harness design determines output quality more than model capability | Structured plan fields (approach, assumptions, criteria, risks) force thorough thinking. |
+| **Progressive disclosure** | Load context just-in-time, not all at once | `claim_task` returns a semantic map (high-level). `query_context` drills deeper. Agents aren't flooded. |
+| **Cloud-synced, not local** | Context shouldn't be trapped in one tool | Knowledge base lives in Supabase with RLS. Start in Claude Code, continue in Cursor — context follows. |
+| **Provenance tracking** | Know where knowledge came from | Every entry records source (human/agent), which agent, confidence score. Entries can be superseded or marked stale. |
 
-### What's in the knowledge base
+---
+
+## The Knowledge Base
 
 Every entry has a **type** that tells you what kind of knowledge it is:
 
-| Type | What it captures | Example |
+| Type | What It Captures | Example |
 |------|-----------------|---------|
 | `decision` | Choices made and why | "Chose JWT over sessions for stateless API" |
 | `constraint` | Hard boundaries | "Must support IE11" / "Budget is $5k/mo" |
@@ -59,11 +124,13 @@ Every entry has a **type** that tells you what kind of knowledge it is:
 | `learning` | Outcomes from work | "Redis caching reduced latency 40%" |
 | `principle` | Standing rules | "Never store PII in logs" |
 
-Entries can be scoped to a project (visible to all tasks) or to a specific task. Learnings can be **promoted** from task scope to project scope so future tasks benefit.
+Entries can be scoped to a **project** (visible to all tasks) or to a **specific task**. Learnings can be **promoted** from task scope to project scope so future tasks benefit.
 
 Each entry tracks **provenance** — who wrote it (human or agent), which agent, and a confidence score. Entries can be **superseded** (replaced by newer versions) or marked **stale** when they may no longer apply.
 
-### How plans work
+---
+
+## How Plans Work
 
 Plans are first-class artifacts, not comments on a task. They have:
 
@@ -84,7 +151,9 @@ Agent creates plan (draft)
             → Task completes → plan completes
 ```
 
-## How it flows
+---
+
+## Workflows
 
 ### Full planning workflow
 
@@ -92,55 +161,36 @@ Agent creates plan (draft)
 1.  create_task("Implement user auth")
 
 2.  claim_task(task_id)
-    → Returns: project context (semantic map), knowledge base entries,
-      existing plan (if any), workspace + session
+    → Returns: semantic map, knowledge base entries, existing plan, workspace + session
 
 3.  query_context(search="auth")
     → Returns: existing decisions, patterns, learnings about auth
 
-4.  create_plan(
-      task_id,
-      approach="JWT + refresh tokens",
+4.  create_plan(task_id, approach="JWT + refresh tokens",
       assumptions=["Server-side validation preferred"],
-      success_criteria=["All tests pass", "RLS policies in place"]
-    )
-    → Creates draft plan
+      success_criteria=["All tests pass", "RLS policies in place"])
 
 5.  update_plan(status="review")
     → Human can now see and review the plan
 
 6.  Human: update_plan(feedback="Also handle 2FA")
-    → Plan auto-reverts to draft, feedback stored in metadata
+    → Plan auto-reverts to draft, feedback stored
 
-7.  Agent: update_plan(
-      approach="JWT + refresh + TOTP 2FA",
-      status="approved"
-    )
+7.  Agent: update_plan(approach="JWT + refresh + TOTP 2FA", status="approved")
     → Version 1 archived, plan now v2 approved
 
-8.  update_plan(status="executing")
-    → Agent starts working
+8.  update_plan(status="executing") → Agent works
 
-9.  add_context(
-      type="pattern",
-      title="Auth endpoints follow /api/v1/auth/*",
-      body="Login at POST /api/v1/auth/login, refresh at POST /api/v1/auth/refresh..."
-    )
-    → Pattern persists in knowledge base for future tasks
+9.  add_context(type="pattern", title="Auth endpoints follow /api/v1/auth/*", ...)
+    → Pattern persists for future tasks
 
-10. record_learning(
-      task_id,
-      title="TOTP library X was 3x faster than Y",
-      body="Benchmarked totp-generator vs otpauth...",
-      promote=true
-    )
+10. record_learning(task_id, title="TOTP library X was 3x faster than Y", promote=true)
     → Learning saved to task AND promoted to project level
 
 11. complete_task(task_id, summary="Implemented JWT auth with TOTP 2FA")
     → Task done, plan auto-completed
 
-12. NEXT TASK: claim_task
-    → Semantic map now includes auth patterns + TOTP learning
+12. NEXT TASK: claim_task → semantic map now includes auth patterns + TOTP learning
 ```
 
 ### Quick task (no plan needed)
@@ -160,75 +210,267 @@ Agent C: start_session(focus="frontend") → query_context → execute
 All agents: add_context + record_learning → shared knowledge base
 ```
 
-## Tools
+### Weight-adaptive (skip what you don't need)
+
+| Task Complexity | Plan? | Knowledge Query? | Learning Capture? |
+|----------------|-------|------------------|-------------------|
+| Typo fix | No | No | No |
+| Bug fix | No | Yes — check for related patterns | Optional |
+| Feature | Yes — full plan cycle | Yes — decisions, constraints, patterns | Yes — promote useful findings |
+| Architecture change | Yes — with human review | Yes — comprehensive context sweep | Yes — always promote |
+
+---
+
+## Tools Reference
 
 ### Task Management
 
-| Tool | Description |
-|------|-------------|
-| `list_tasks` | List your tasks (uses global board by default) |
-| `create_task` | Create a task, optionally tagged with a project |
-| `get_task` | Full task details including board and column |
-| `update_task` | Change title, description, status, or priority |
-| `claim_task` | Start working — moves to In Progress, returns project context + knowledge base + plan |
-| `complete_task` | Mark done with summary — auto-completes active plan |
-| `log_progress` | Log a progress note to the execution session |
-| `delete_task` | Remove a task |
+#### `create_task`
+Create a new task on your board.
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `title` | Yes | Task title |
+| `description` | No | Detailed description |
+| `board_id` | No | Target board (defaults to global board) |
+| `priority` | No | `low`, `medium`, `high`, `critical` |
+| `project_id` | No | Associate with a project |
+
+#### `claim_task`
+Start working on a task. Moves it to In Progress and returns full context.
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `task_id` | Yes | Task to claim |
+| `executor` | No | Agent type (auto-detected from env) |
+| `branch` | No | Custom git branch name |
+
+**Returns**: `task_id`, `workspace_id`, `session_id`, `branch`, `executor`, `status`, `context_entries[]`, `existing_plan`
+
+#### `complete_task`
+Mark task as done. Auto-completes any active plan.
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `task_id` | Yes | Task to complete |
+| `summary` | No | Completion summary |
+
+#### `get_task`
+Full task details including board and column info.
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `task_id` | Yes | Task to retrieve |
+
+#### `update_task`
+Change title, description, status, or priority.
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `task_id` | Yes | Task to update |
+| `title` | No | New title |
+| `description` | No | New description |
+| `status` | No | New status |
+| `priority` | No | New priority |
+
+#### `list_tasks`
+List tasks, optionally filtered by board.
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `board_id` | No | Filter by board (defaults to global) |
+| `status` | No | Filter by status |
+
+#### `log_progress`
+Log a progress note to the execution session.
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `task_id` | Yes | Task to log against |
+| `message` | Yes | Progress message |
+
+#### `delete_task`
+Remove a task.
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `task_id` | Yes | Task to delete |
+
+---
 
 ### Planning
 
-| Tool | Description |
-|------|-------------|
-| `create_plan` | Create an execution plan for a task with approach, assumptions, criteria, risks |
-| `get_plan` | Get the active plan for a task with full version history |
-| `update_plan` | Iterate: update approach, change status, add feedback (feedback auto-reverts to draft) |
+#### `create_plan`
+Create an execution plan for a task. Status starts as `draft`.
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `task_id` | Yes | Task this plan is for |
+| `approach` | Yes | The proposed approach |
+| `assumptions` | No | List of assumptions |
+| `constraints` | No | Known constraints |
+| `success_criteria` | No | How to know it's done |
+| `risks` | No | Identified risks |
+| `estimated_steps` | No | Estimated number of steps |
+
+**Returns**: `{ plan_id, status: "draft", version: 1 }`
+
+#### `get_plan`
+Get the active plan for a task with version history.
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `task_id` | Yes | Task to get plan for |
+
+**Returns**: `{ plan, versions[] }` or `{ plan: null, message: "No active plan" }`
+
+#### `update_plan`
+Iterate on a plan. Content changes archive the current version and increment the version number. Setting feedback auto-reverts status to `draft`.
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `plan_id` | Yes | Plan to update |
+| `approach` | No | Updated approach |
+| `status` | No | `draft`, `review`, `approved`, `executing` |
+| `feedback` | No | Feedback (auto-reverts to draft) |
+| `assumptions` | No | Updated assumptions |
+| `constraints` | No | Updated constraints |
+| `success_criteria` | No | Updated criteria |
+| `risks` | No | Updated risks |
+
+**Returns**: `{ plan_id, version, status }`
+
+---
 
 ### Knowledge Base
 
-| Tool | Description |
-|------|-------------|
-| `query_context` | Search by project, task, type, tags, or full-text. Returns active entries |
-| `add_context` | Write a decision, constraint, preference, pattern, or principle |
-| `record_learning` | Capture an outcome from work. `promote=true` copies to project level |
+#### `query_context`
+Search the knowledge base. All parameters are optional — combine them to narrow results.
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `project_id` | No | Filter by project |
+| `task_id` | No | Filter by task |
+| `type` | No | `decision`, `constraint`, `preference`, `pattern`, `learning`, `principle` |
+| `search` | No | Full-text search across title and body |
+| `tags` | No | Filter by tags (array) |
+| `limit` | No | Max results (default 20) |
+
+**Returns**: `{ entries[], count }`
+
+#### `add_context`
+Write a new entry to the knowledge base.
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `type` | Yes | `decision`, `constraint`, `preference`, `pattern`, `learning`, `principle` |
+| `title` | Yes | Entry title |
+| `body` | Yes | Entry content |
+| `project_id` | No | Scope to project |
+| `task_id` | No | Scope to task |
+| `tags` | No | Tags for filtering |
+| `confidence` | No | 0.0–1.0 (default 1.0) |
+| `supersedes` | No | ID of entry this replaces |
+
+**Returns**: `{ context_id, status: "active" }`
+
+#### `record_learning`
+Capture an outcome from completed work. Optionally promote to project scope so future tasks inherit it.
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `task_id` | Yes | Task the learning came from |
+| `title` | Yes | Learning title |
+| `body` | Yes | What was learned |
+| `learning_type` | No | `outcome`, `pattern`, `mistake`, `optimization`, `decision_record` |
+| `tags` | No | Tags for filtering |
+| `promote` | No | `true` to copy to project scope |
+
+**Returns**: `{ learning_id, promoted_id }` (`promoted_id` is null if not promoted)
+
+---
 
 ### Sessions & Boards
 
-| Tool | Description |
-|------|-------------|
-| `start_session` | Start a parallel agent session with a focus area |
-| `list_sessions` | List sessions for a task with status and focus |
-| `update_session` | Update session status or focus |
-| `get_or_create_global_board` | Get your global board (auto-created on first use) |
-| `list_projects` | List projects you have access to |
-| `list_boards` | List boards for a project |
-| `create_board` | Create a new board with default columns |
-| `migrate_to_global_board` | Move all tasks to the global board |
+#### `start_session`
+Start a parallel agent session with a focus area.
 
-## Architecture
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `task_id` | Yes | Task to work on |
+| `focus` | Yes | What this session focuses on (e.g., "backend", "frontend") |
 
-### Data model
+#### `list_sessions`
+List sessions for a task.
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `task_id` | No | Filter by task |
+
+#### `update_session`
+Update session status or focus.
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `session_id` | Yes | Session to update |
+| `status` | No | New status |
+| `focus` | No | Updated focus |
+
+#### `get_or_create_global_board`
+Get your global board (auto-created on first use). No parameters required.
+
+#### `list_projects`
+List projects you have access to. No parameters required.
+
+#### `list_boards`
+List boards for a project.
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `project_id` | Yes | Project to list boards for |
+
+#### `create_board`
+Create a new board with default columns.
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `project_id` | Yes | Project to create board in |
+
+#### `migrate_to_global_board`
+Move all tasks to the global board. No parameters required.
+
+---
+
+## Data Model
 
 Two tables handle everything:
 
 **`planning_context`** — Every piece of knowledge: plans, decisions, constraints, patterns, learnings, principles. Differentiated by `type`. Scoped to user + optional project + optional task.
 
+Key fields:
+- `type` — what kind of entry (plan, decision, constraint, preference, pattern, learning, principle)
+- `status` — lifecycle state (draft, review, approved, executing, active, completed, stale, superseded, archived)
+- `metadata` — structured JSON (for plans: assumptions, constraints, success_criteria, risks, feedback)
+- `source` / `source_agent` — provenance (human or agent, which agent)
+- `confidence` — 0.0 to 1.0
+- `superseded_by` — chain to replacement entry
+- `version` — increments on content changes
+
 **`planning_context_versions`** — Immutable snapshots. When a plan's content changes or feedback is given, the current state is archived here before the update.
 
-### How context flows into tasks
+### How Context Flows Into Tasks
 
 When an agent calls `claim_task`, three things happen:
 
-1. **Semantic map** (`buildProjectContextMd`) assembles markdown from the project's PRD, research analyses, documents, insights, and active knowledge base entries
+1. **Semantic map** (`buildProjectContextMd`) assembles markdown from the project's PRD, analyses, documents, insights, and active knowledge base entries
 2. **Context entries** — the raw knowledge base rows (decisions, patterns, etc.) for the project
 3. **Existing plan** — if someone already created a plan for this task, it's returned
 
-This is progressive disclosure: the semantic map gives a high-level overview, context entries give structured detail, and `query_context` lets the agent drill deeper.
+This is progressive disclosure: the semantic map gives a high-level overview, context entries give structured detail, and `query_context` lets the agent drill deeper on demand.
 
-### Cloud-synced, not local
+---
 
-Everything lives in Supabase with row-level security. Any MCP-compatible agent reads and writes to the same knowledge base. Start planning in Claude Code, execute in Cursor, review in the CrowdListen web app — the context follows.
-
-## Supported agents
+## Supported Agents
 
 Auto-configured on login:
 - **Claude Code** (`~/.claude.json`)
@@ -240,9 +482,9 @@ Auto-configured on login:
 Also works with (manual config):
 - **OpenClaw**, **Copilot**, **Droid**, **Qwen Code**, **OpenCode**
 
-The server auto-detects which agent is running and logs it.
+The server auto-detects which agent is running and logs it as provenance on plans and context entries.
 
-## Manual configuration
+## Manual Configuration
 
 If auto-configure doesn't work, add this to your agent's MCP config:
 
@@ -266,9 +508,9 @@ npx @crowdlisten/planner logout   # Clear credentials
 npx @crowdlisten/planner whoami   # Check current user
 ```
 
-## Multi-user
+## Multi-User
 
-Each person logs in with their own CrowdListen account. Row-level security means they only see their own data. Multiple users can work on shared projects simultaneously.
+Each person logs in with their own CrowdListen account. Row-level security means they only see their own data. Multiple users can work on shared projects simultaneously — all reading and writing to the same knowledge base.
 
 ## Development
 
@@ -278,7 +520,7 @@ cd crowdlisten_tasks
 npm install
 npm run build
 npm run dev     # Run with tsx
-npm test        # Vitest
+npm test        # 210 tests via Vitest
 ```
 
 ## Troubleshooting
