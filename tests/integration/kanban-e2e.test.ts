@@ -1,5 +1,5 @@
 /**
- * CrowdListen Kanban MCP - Integration / E2E Tests
+ * CrowdListen Planner MCP - Integration / E2E Tests
  *
  * Runs a full task lifecycle against real Supabase using a service-role key.
  * Requires three environment variables:
@@ -24,7 +24,7 @@ const canRun = !!(SUPABASE_URL && SUPABASE_KEY && TEST_USER_ID);
 
 // ── Test suite ─────────────────────────────────────────────────────────────
 
-describe.skipIf(!canRun)('Kanban MCP E2E — full task lifecycle', () => {
+describe.skipIf(!canRun)('Planner MCP E2E — full task lifecycle', () => {
   const sb = createClient(SUPABASE_URL!, SUPABASE_KEY!);
   const userId = TEST_USER_ID!;
 

@@ -106,7 +106,7 @@ export function callbackHtml(success: boolean, error?: string): string {
 
 export const MCP_ENTRY = {
   command: "npx",
-  args: ["-y", "@crowdlisten/kanban"],
+  args: ["-y", "@crowdlisten/planner"],
 };
 
 export interface AgentConfig {
@@ -202,7 +202,7 @@ export async function autoInstallMcp(): Promise<string[]> {
 export const TOOLS = [
   {
     name: "get_or_create_global_board",
-    description: "Get (or create) your single global kanban board. All tasks go here by default.",
+    description: "Get (or create) your single global task board. All tasks go here by default.",
     inputSchema: { type: "object" as const, properties: {} },
   },
   {
@@ -212,7 +212,7 @@ export const TOOLS = [
   },
   {
     name: "list_boards",
-    description: "List kanban boards for a project.",
+    description: "List task boards for a project.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -223,7 +223,7 @@ export const TOOLS = [
   },
   {
     name: "create_board",
-    description: "Create a new kanban board for a project with default columns (To Do, In Progress, In Review, Done, Cancelled).",
+    description: "Create a new task board for a project with default columns (To Do, In Progress, In Review, Done, Cancelled).",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -604,7 +604,7 @@ export async function getOrCreateGlobalBoard(
       .insert({
         user_id: userId,
         name: "Global Tasks",
-        description: "Container for your global kanban board",
+        description: "Container for your global task board",
       })
       .select("id")
       .single();

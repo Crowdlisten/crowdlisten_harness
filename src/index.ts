@@ -7,7 +7,7 @@
  * (Claude Code, Cursor, Gemini CLI, Codex, OpenClaw, Amp, etc.) with project
  * context intact. Closes the loop between product intent and implementation.
  *
- * First time:  npx @crowdlisten/kanban login
+ * First time:  npx @crowdlisten/planner login
  * Then add to your agent config and go.
  */
 
@@ -163,7 +163,7 @@ async function getAuthedClient(): Promise<{
 
   if (!auth) {
     console.error(
-      "Not logged in. Run: npx @crowdlisten/kanban login"
+      "Not logged in. Run: npx @crowdlisten/planner login"
     );
     process.exit(1);
   }
@@ -181,7 +181,7 @@ async function getAuthedClient(): Promise<{
   });
 
   if (error || !data.session) {
-    console.error("Session expired. Please login again: npx @crowdlisten/kanban login");
+    console.error("Session expired. Please login again: npx @crowdlisten/planner login");
     clearAuth();
     process.exit(1);
   }
@@ -214,7 +214,7 @@ if (command === "login") {
   if (auth) {
     console.error(`Logged in as: ${auth.email} (${auth.user_id})`);
   } else {
-    console.error("Not logged in. Run: npx @crowdlisten/kanban login");
+    console.error("Not logged in. Run: npx @crowdlisten/planner login");
   }
   process.exit(0);
 } else if (command === "setup") {
@@ -233,7 +233,7 @@ if (command === "login") {
   });
 } else if (command === "help" || command === "--help" || command === "-h") {
   console.error(`
-CrowdListen Kanban CLI
+CrowdListen Planner CLI
 
 COMMANDS:
   login     Sign in + auto-configure your coding agents
@@ -244,7 +244,7 @@ COMMANDS:
 
 QUICK START:
 
-  npx @crowdlisten/kanban login
+  npx @crowdlisten/planner login
 
   That's it. Login auto-detects and configures Claude Code,
   Cursor, Gemini CLI, Codex, and Amp. Just restart your agent.
@@ -294,5 +294,5 @@ async function startMcpServer() {
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error("CrowdListen Kanban MCP server running");
+  console.error("CrowdListen Planner MCP server running");
 }

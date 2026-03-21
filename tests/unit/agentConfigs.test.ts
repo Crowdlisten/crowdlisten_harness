@@ -57,7 +57,7 @@ describe("MCP_ENTRY constant", () => {
 
   it("has args with -y flag and package name", () => {
     expect(MCP_ENTRY.args).toContain("-y");
-    expect(MCP_ENTRY.args).toContain("@crowdlisten/kanban");
+    expect(MCP_ENTRY.args).toContain("@crowdlisten/planner");
   });
 
   it("has exactly 2 args", () => {

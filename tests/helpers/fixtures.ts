@@ -1,5 +1,5 @@
 /**
- * Test fixtures for CrowdListen Kanban MCP tests.
+ * Test fixtures for CrowdListen Planner MCP tests.
  *
  * Provides consistent sample data objects matching the Supabase schema
  * used throughout the tool handlers.
@@ -22,7 +22,7 @@ export const TEST_PROJECT_ID = "proj-0000-0000-0000-000000000001";
 export const TEST_PROJECT = {
   id: TEST_PROJECT_ID,
   name: "Global Tasks",
-  description: "Container for your global kanban board",
+  description: "Container for your global task board",
   user_id: TEST_USER_ID,
   updated_at: "2026-01-15T10:00:00Z",
 };

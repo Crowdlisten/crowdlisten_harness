@@ -7,7 +7,7 @@
  *
  * Usage:
  *   const { sb, callLog } = createMockSupabase();
- *   sb._results.set("kanban_boards.select", { data: [...], error: null });
+ *   sb._results.set("some_table.select", { data: [...], error: null });
  *   // pass sb into handleTool(sb, userId, toolName, args)
  *   // inspect callLog for assertions
  */
@@ -26,7 +26,7 @@ export interface MockQueryResult {
 }
 
 /**
- * A lookup key is built as "table.method" (e.g. "kanban_boards.select").
+ * A lookup key is built as "table.method" (e.g. "planning_context.select").
  * If no specific key is registered, the builder falls back to a default
  * successful empty result.
  */

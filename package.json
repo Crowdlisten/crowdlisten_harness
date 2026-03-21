@@ -1,10 +1,10 @@
 {
-  "name": "@crowdlisten/kanban",
+  "name": "@crowdlisten/planner",
   "version": "0.4.0",
   "description": "Planning and delegation system for AI agents — plan before you build, capture knowledge as you go, compound learnings across tasks",
   "type": "module",
   "bin": {
-    "crowdlisten-kanban": "dist/index.js"
+    "crowdlisten-planner": "dist/index.js"
   },
   "scripts": {
     "build": "tsc",
