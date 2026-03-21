@@ -130,11 +130,6 @@ export function getAgentConfigs(): AgentConfig[] {
       mcpKey: "mcpServers",
     },
     {
-      name: "Cursor (project)",
-      configPath: path.join(process.cwd(), ".cursor", "mcp.json"),
-      mcpKey: "mcpServers",
-    },
-    {
       name: "Gemini CLI",
       configPath: path.join(home, ".gemini", "settings.json"),
       mcpKey: "mcpServers",
@@ -143,11 +138,6 @@ export function getAgentConfigs(): AgentConfig[] {
       name: "Codex",
       configPath: path.join(home, ".codex", "config.json"),
       mcpKey: "mcp_servers",
-    },
-    {
-      name: "Amp",
-      configPath: path.join(home, ".amp", "settings.json"),
-      mcpKey: "amp.mcpServers",
     },
     {
       name: "OpenClaw",

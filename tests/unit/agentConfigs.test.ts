@@ -10,16 +10,14 @@ describe("getAgentConfigs", () => {
 
     expect(names).toContain("Claude Code");
     expect(names).toContain("Cursor");
-    expect(names).toContain("Cursor (project)");
     expect(names).toContain("Gemini CLI");
     expect(names).toContain("Codex");
-    expect(names).toContain("Amp");
     expect(names).toContain("OpenClaw");
   });
 
-  it("returns exactly 7 agent configurations", () => {
+  it("returns exactly 5 agent configurations", () => {
     const configs = getAgentConfigs();
-    expect(configs).toHaveLength(7);
+    expect(configs).toHaveLength(5);
   });
 
   it("each config has name, configPath, and mcpKey", () => {
@@ -42,12 +40,6 @@ describe("getAgentConfigs", () => {
     const configs = getAgentConfigs();
     const codex = configs.find((c) => c.name === "Codex")!;
     expect(codex.mcpKey).toBe("mcp_servers");
-  });
-
-  it("Amp uses dotted mcpKey path", () => {
-    const configs = getAgentConfigs();
-    const amp = configs.find((c) => c.name === "Amp")!;
-    expect(amp.mcpKey).toBe("amp.mcpServers");
   });
 });
 

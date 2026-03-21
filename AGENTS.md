@@ -16,7 +16,7 @@ Install both with one command: `npx @crowdlisten/planner login`
 ```bash
 npx @crowdlisten/planner login
 ```
-Auto-configures MCP for Claude Code, Cursor, Gemini CLI, Codex, Amp, OpenClaw.
+Auto-configures MCP for Claude Code, Cursor, Gemini CLI, Codex, OpenClaw.
 
 ### Manual MCP config
 ```json

@@ -186,7 +186,7 @@ See [AGENTS.md](AGENTS.md) for machine-readable capability descriptions, MCP con
 
 ## Supported Agents
 
-**Auto-configured on login:** Claude Code, Cursor, Gemini CLI, Codex, Amp, OpenClaw
+**Auto-configured on login:** Claude Code, Cursor, Gemini CLI, Codex, OpenClaw
 
 **Also works with (manual config):** Copilot, Droid, Qwen Code, OpenCode
 
