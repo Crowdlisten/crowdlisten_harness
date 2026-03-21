@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import { TOOLS } from "../../src/tools.js";
 
 describe("TOOLS definitions", () => {
-  it("defines exactly 16 tools", () => {
-    expect(TOOLS).toHaveLength(16);
+  it("defines exactly 22 tools", () => {
+    expect(TOOLS).toHaveLength(22);
   });
 
   it("each tool has a name, description, and inputSchema", () => {
@@ -40,6 +40,12 @@ describe("TOOLS definitions", () => {
     "start_session",
     "list_sessions",
     "update_session",
+    "create_plan",
+    "get_plan",
+    "update_plan",
+    "query_context",
+    "add_context",
+    "record_learning",
   ];
 
   for (const toolName of expectedTools) {
@@ -115,6 +121,41 @@ describe("TOOLS definitions", () => {
     it("list_tasks has no required fields (board_id is optional)", () => {
       const tool = TOOLS.find((t) => t.name === "list_tasks")!;
       expect(tool.inputSchema.required).toBeUndefined();
+    });
+
+    it("create_plan requires task_id and approach", () => {
+      const tool = TOOLS.find((t) => t.name === "create_plan")!;
+      expect(tool.inputSchema.required).toContain("task_id");
+      expect(tool.inputSchema.required).toContain("approach");
+    });
+
+    it("get_plan requires task_id", () => {
+      const tool = TOOLS.find((t) => t.name === "get_plan")!;
+      expect(tool.inputSchema.required).toContain("task_id");
+    });
+
+    it("update_plan requires plan_id", () => {
+      const tool = TOOLS.find((t) => t.name === "update_plan")!;
+      expect(tool.inputSchema.required).toContain("plan_id");
+    });
+
+    it("query_context has no required fields", () => {
+      const tool = TOOLS.find((t) => t.name === "query_context")!;
+      expect(tool.inputSchema.required).toBeUndefined();
+    });
+
+    it("add_context requires type, title, body", () => {
+      const tool = TOOLS.find((t) => t.name === "add_context")!;
+      expect(tool.inputSchema.required).toContain("type");
+      expect(tool.inputSchema.required).toContain("title");
+      expect(tool.inputSchema.required).toContain("body");
+    });
+
+    it("record_learning requires task_id, title, body", () => {
+      const tool = TOOLS.find((t) => t.name === "record_learning")!;
+      expect(tool.inputSchema.required).toContain("task_id");
+      expect(tool.inputSchema.required).toContain("title");
+      expect(tool.inputSchema.required).toContain("body");
     });
   });
 });

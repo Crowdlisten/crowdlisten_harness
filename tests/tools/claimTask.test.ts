@@ -42,7 +42,7 @@ describe("claim_task tool", () => {
     Object.assign(process.env, originalEnv);
   });
 
-  it("claims a task with explicit executor", async () => {
+  it("claims a task with explicit executor and returns context", async () => {
     // Get card — .select(...).eq(...).single() => "select"
     pushResult("kanban_cards", "select", {
       id: TEST_TASK_ID,
@@ -70,6 +70,9 @@ describe("claim_task tool", () => {
     expect(parsed.executor).toBe("CLAUDE_CODE");
     expect(parsed.status).toBe("claimed");
     expect(parsed.branch).toContain("task/fix-login-bug-");
+    // New fields from planning system
+    expect(parsed).toHaveProperty("context_entries");
+    expect(parsed).toHaveProperty("existing_plan");
   });
 
   it("auto-detects executor when not provided", async () => {

@@ -1,7 +1,7 @@
 {
   "name": "@crowdlisten/kanban",
-  "version": "0.3.0",
-  "description": "Planning and task delegation for AI agents — decompose specs into executable work, route to coding agents with project context intact",
+  "version": "0.4.0",
+  "description": "Planning and delegation system for AI agents — plan before you build, capture knowledge as you go, compound learnings across tasks",
   "type": "module",
   "bin": {
     "crowdlisten-kanban": "dist/index.js"
@@ -33,10 +33,11 @@
   ],
   "keywords": [
     "mcp",
-    "kanban",
+    "planning",
+    "delegation",
     "coding-agent",
     "crowdlisten",
-    "vibe-kanban"
+    "knowledge-base"
   ],
   "license": "MIT",
   "repository": {

@@ -21,13 +21,15 @@ describe("complete_task tool", () => {
     pushResult = mock.pushResult;
   });
 
-  it("marks a task as done without summary", async () => {
+  it("marks a task as done and completes active plan", async () => {
     // Get card's board_id
     pushResult("kanban_cards", "select", { board_id: TEST_BOARD_ID });
     // getColumnByStatus for "done"
     pushResult("kanban_columns", "select", { id: TEST_COLUMN_DONE_ID });
     // Update card to done
     pushResult("kanban_cards", "update", null);
+    // Mark active plan as completed
+    pushResult("planning_context", "update", null);
 
     const result = await handleTool(sb as any, TEST_USER_ID, "complete_task", {
       task_id: TEST_TASK_ID,
@@ -45,6 +47,8 @@ describe("complete_task tool", () => {
     pushResult("kanban_columns", "select", { id: TEST_COLUMN_DONE_ID });
     // Update card
     pushResult("kanban_cards", "update", null);
+    // Mark active plan as completed
+    pushResult("planning_context", "update", null);
     // logToSession: find workspace
     pushResult("kanban_workspaces", "select", { id: TEST_WORKSPACE_ID });
     // logToSession: find session

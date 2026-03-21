@@ -110,6 +110,52 @@ export const TEST_STORED_AUTH = {
   expires_at: Math.floor(Date.now() / 1000) + 3600,
 };
 
+// ─── Planning Context Fixtures ───────────────────────────────────────────────
+
+export const TEST_PLAN_ID = "plan-0000-0000-0000-000000000001";
+export const TEST_PLAN = {
+  id: TEST_PLAN_ID,
+  user_id: TEST_USER_ID,
+  project_id: TEST_PROJECT_ID,
+  task_id: TEST_TASK_ID,
+  type: "plan",
+  title: "Plan: JWT + refresh tokens",
+  body: "JWT + refresh tokens",
+  metadata: {
+    assumptions: ["Server-side validation preferred"],
+    success_criteria: ["All tests pass"],
+  },
+  status: "draft",
+  version: 1,
+  source: "agent",
+  source_agent: "CLAUDE_CODE",
+  confidence: 1.0,
+  created_at: "2026-01-15T14:00:00Z",
+  updated_at: "2026-01-15T14:00:00Z",
+};
+
+export const TEST_CONTEXT_ID = "ctx-0000-0000-0000-000000000001";
+export const TEST_CONTEXT_ENTRY = {
+  id: TEST_CONTEXT_ID,
+  user_id: TEST_USER_ID,
+  project_id: TEST_PROJECT_ID,
+  task_id: null,
+  type: "decision",
+  title: "Use JWT for auth",
+  body: "Chose JWT over session cookies for stateless API",
+  tags: ["auth", "architecture"],
+  metadata: {},
+  status: "active",
+  confidence: 1.0,
+  source: "agent",
+  source_agent: "CLAUDE_CODE",
+  created_at: "2026-01-15T15:00:00Z",
+  updated_at: "2026-01-15T15:00:00Z",
+};
+
+export const TEST_LEARNING_ID = "learn-0000-0000-0000-000000000001";
+export const TEST_PROMOTED_ID = "learn-0000-0000-0000-000000000002";
+
 /**
  * Builds a list of tasks with configurable count.
  */

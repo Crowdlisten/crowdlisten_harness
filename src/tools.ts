@@ -407,6 +407,140 @@ export const TOOLS = [
       required: ["session_id"],
     },
   },
+
+  // ── Planning & Context Tools ─────────────────────────────────────────────
+
+  {
+    name: "create_plan",
+    description:
+      "Create an execution plan for a task. Plans are first-class artifacts that go through draft → review → approved → executing → completed lifecycle.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        task_id: { type: "string", description: "Card/task UUID" },
+        approach: { type: "string", description: "How you plan to execute this task" },
+        assumptions: {
+          type: "array",
+          items: { type: "string" },
+          description: "Assumptions the plan relies on",
+        },
+        constraints: {
+          type: "array",
+          items: { type: "string" },
+          description: "Known constraints to work within",
+        },
+        success_criteria: {
+          type: "array",
+          items: { type: "string" },
+          description: "How to know the task is done correctly",
+        },
+        risks: {
+          type: "array",
+          items: { type: "string" },
+          description: "Potential risks or blockers",
+        },
+        estimated_steps: { type: "number", description: "Estimated number of steps" },
+      },
+      required: ["task_id", "approach"],
+    },
+  },
+  {
+    name: "get_plan",
+    description: "Get the plan for a task including version history and any pending feedback.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        task_id: { type: "string", description: "Card/task UUID" },
+      },
+      required: ["task_id"],
+    },
+  },
+  {
+    name: "update_plan",
+    description:
+      "Iterate on a plan: update approach, change status, or add feedback. Content changes archive the current version. Setting feedback auto-reverts status to draft.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        plan_id: { type: "string", description: "Plan UUID (from create_plan or get_plan)" },
+        approach: { type: "string", description: "Updated approach" },
+        status: {
+          type: "string",
+          description: "draft, review, approved, executing, completed",
+        },
+        feedback: { type: "string", description: "Human feedback — auto-reverts plan to draft" },
+        assumptions: { type: "array", items: { type: "string" } },
+        constraints: { type: "array", items: { type: "string" } },
+        success_criteria: { type: "array", items: { type: "string" } },
+        risks: { type: "array", items: { type: "string" } },
+      },
+      required: ["plan_id"],
+    },
+  },
+  {
+    name: "query_context",
+    description:
+      "Search the project knowledge base — decisions, constraints, preferences, patterns, learnings, principles. Returns active entries matching your filters.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        project_id: { type: "string", description: "Filter by project" },
+        task_id: { type: "string", description: "Filter by task" },
+        type: {
+          type: "string",
+          description: "Filter by type: plan, decision, constraint, preference, pattern, learning, principle",
+        },
+        search: { type: "string", description: "Full-text search across title and body" },
+        tags: { type: "array", items: { type: "string" }, description: "Filter by tags" },
+        limit: { type: "number", description: "Max results (default 20)" },
+      },
+    },
+  },
+  {
+    name: "add_context",
+    description:
+      "Write to the project knowledge base. Use for decisions, constraints, preferences, patterns, or principles discovered during work.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        type: {
+          type: "string",
+          description: "decision, constraint, preference, pattern, learning, or principle",
+        },
+        title: { type: "string", description: "Short descriptive title" },
+        body: { type: "string", description: "Full context content" },
+        project_id: { type: "string", description: "Scope to project (recommended)" },
+        task_id: { type: "string", description: "Scope to task (optional)" },
+        tags: { type: "array", items: { type: "string" }, description: "Tags for discovery" },
+        confidence: { type: "number", description: "0-1 confidence score (default 1.0)" },
+        supersedes: { type: "string", description: "UUID of context entry this replaces" },
+      },
+      required: ["type", "title", "body"],
+    },
+  },
+  {
+    name: "record_learning",
+    description:
+      "Capture a learning from completed work. Optionally promote to project-level context so future tasks benefit.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        task_id: { type: "string", description: "Card/task UUID the learning came from" },
+        title: { type: "string", description: "What was learned" },
+        body: { type: "string", description: "Details of the learning" },
+        learning_type: {
+          type: "string",
+          description: "outcome, pattern, mistake, optimization, or decision_record",
+        },
+        tags: { type: "array", items: { type: "string" }, description: "Tags for discovery" },
+        promote: {
+          type: "boolean",
+          description: "If true, also creates a project-level copy visible to all future tasks",
+        },
+      },
+      required: ["task_id", "title", "body"],
+    },
+  },
 ];
 
 // ─── Status <-> Column mapping ────────────────────────────────────────────────
@@ -741,6 +875,8 @@ export async function handleTool(
 
       // Fetch project context if this board belongs to a project
       let projectContext: string | null = null;
+      let contextEntries: unknown[] = [];
+      let existingPlan: unknown = null;
       try {
         const { data: board } = await sb
           .from("kanban_boards")
@@ -750,7 +886,28 @@ export async function handleTool(
 
         if (board?.project_id) {
           projectContext = await buildProjectContextMd(sb, board.project_id);
+
+          // Fetch relevant context entries (active decisions, constraints, patterns, etc.)
+          const { data: ctx } = await sb
+            .from("planning_context")
+            .select("id, type, title, body, tags, confidence")
+            .eq("user_id", userId)
+            .eq("project_id", board.project_id)
+            .in("status", ["active", "approved", "executing"])
+            .order("updated_at", { ascending: false })
+            .limit(20);
+          if (ctx) contextEntries = ctx;
         }
+
+        // Fetch existing plan for this task
+        const { data: plan } = await sb
+          .from("planning_context")
+          .select("id, title, body, metadata, status, version")
+          .eq("task_id", taskId)
+          .eq("type", "plan")
+          .not("status", "in", '("completed","archived","superseded")')
+          .single();
+        if (plan) existingPlan = plan;
       } catch {
         // Non-blocking — proceed without context
       }
@@ -763,6 +920,8 @@ export async function handleTool(
         executor,
         status: "claimed",
         project_context: projectContext,
+        context_entries: contextEntries,
+        existing_plan: existingPlan,
       });
     }
 
@@ -782,6 +941,18 @@ export async function handleTool(
         const updates: Record<string, unknown> = { status: "done" };
         if (col) updates.column_id = col;
         await sb.from("kanban_cards").update(updates).eq("id", taskId);
+      }
+
+      // Mark active plan as completed
+      try {
+        await sb
+          .from("planning_context")
+          .update({ status: "completed", updated_at: new Date().toISOString() })
+          .eq("task_id", taskId)
+          .eq("type", "plan")
+          .in("status", ["draft", "review", "approved", "executing"]);
+      } catch {
+        // Non-blocking
       }
 
       // Log summary if provided
@@ -1015,6 +1186,302 @@ export async function handleTool(
       });
     }
 
+    // ── Planning & Context ────────────────────────────────────
+
+    case "create_plan": {
+      const taskId = args.task_id as string;
+      const approach = args.approach as string;
+
+      // Build metadata from optional structured fields
+      const metadata: Record<string, unknown> = {};
+      if (args.assumptions) metadata.assumptions = args.assumptions;
+      if (args.constraints) metadata.constraints = args.constraints;
+      if (args.success_criteria) metadata.success_criteria = args.success_criteria;
+      if (args.risks) metadata.risks = args.risks;
+      if (args.estimated_steps) metadata.estimated_steps = args.estimated_steps;
+
+      // Look up project_id from the task's board
+      let projectId: string | null = null;
+      try {
+        const { data: card } = await sb
+          .from("kanban_cards")
+          .select("board_id")
+          .eq("id", taskId)
+          .single();
+        if (card) {
+          const { data: board } = await sb
+            .from("kanban_boards")
+            .select("project_id")
+            .eq("id", card.board_id)
+            .single();
+          if (board?.project_id) projectId = board.project_id;
+        }
+      } catch {
+        // Non-blocking
+      }
+
+      const { data: plan, error: planErr } = await sb
+        .from("planning_context")
+        .insert({
+          user_id: userId,
+          project_id: projectId,
+          task_id: taskId,
+          type: "plan",
+          title: `Plan: ${approach.slice(0, 80)}`,
+          body: approach,
+          metadata,
+          status: "draft",
+          source: "agent",
+          source_agent: detectExecutor(),
+        })
+        .select("id, status, version")
+        .single();
+      if (planErr) throw new Error(planErr.message);
+
+      return json({ plan_id: plan!.id, status: plan!.status, version: plan!.version });
+    }
+
+    case "get_plan": {
+      const taskId = args.task_id as string;
+
+      const { data: plan, error: planErr } = await sb
+        .from("planning_context")
+        .select("id, title, body, metadata, status, version, source, source_agent, confidence, created_at, updated_at")
+        .eq("task_id", taskId)
+        .eq("type", "plan")
+        .not("status", "in", '("completed","archived","superseded")')
+        .single();
+
+      if (planErr || !plan) {
+        return json({ plan: null, versions: [], message: "No active plan for this task" });
+      }
+
+      const { data: versions } = await sb
+        .from("planning_context_versions")
+        .select("version, title, body, metadata, status, feedback, created_at")
+        .eq("context_id", plan.id)
+        .order("version", { ascending: false });
+
+      return json({ plan, versions: versions || [] });
+    }
+
+    case "update_plan": {
+      const planId = args.plan_id as string;
+
+      // Get current plan state
+      const { data: current, error: getErr } = await sb
+        .from("planning_context")
+        .select("id, title, body, metadata, status, version")
+        .eq("id", planId)
+        .single();
+      if (getErr || !current) throw new Error(getErr?.message || "Plan not found");
+
+      const hasContentChange = args.approach || args.assumptions || args.constraints ||
+        args.success_criteria || args.risks;
+      const hasFeedback = !!args.feedback;
+
+      // Archive current version if content is changing or feedback given
+      if (hasContentChange || hasFeedback) {
+        await sb.from("planning_context_versions").insert({
+          context_id: planId,
+          version: current.version,
+          title: current.title,
+          body: current.body,
+          metadata: current.metadata,
+          status: current.status,
+          feedback: (args.feedback as string) || null,
+        });
+      }
+
+      // Build updates
+      const updates: Record<string, unknown> = {
+        updated_at: new Date().toISOString(),
+      };
+
+      if (args.approach) {
+        updates.body = args.approach;
+        updates.title = `Plan: ${(args.approach as string).slice(0, 80)}`;
+      }
+
+      // Merge metadata fields
+      const meta = { ...(current.metadata as Record<string, unknown>) };
+      if (args.assumptions) meta.assumptions = args.assumptions;
+      if (args.constraints) meta.constraints = args.constraints;
+      if (args.success_criteria) meta.success_criteria = args.success_criteria;
+      if (args.risks) meta.risks = args.risks;
+      if (hasContentChange) updates.metadata = meta;
+
+      // Feedback auto-reverts to draft
+      if (hasFeedback) {
+        updates.status = "draft";
+        const feedbackMeta = { ...meta, feedback: args.feedback };
+        updates.metadata = feedbackMeta;
+      } else if (args.status) {
+        updates.status = args.status;
+      }
+
+      if (hasContentChange || hasFeedback) {
+        updates.version = current.version + 1;
+      }
+
+      const { data: updated, error: upErr } = await sb
+        .from("planning_context")
+        .update(updates)
+        .eq("id", planId)
+        .select("id, status, version")
+        .single();
+      if (upErr) throw new Error(upErr.message);
+
+      return json({ plan_id: updated!.id, version: updated!.version, status: updated!.status });
+    }
+
+    case "query_context": {
+      let query = sb
+        .from("planning_context")
+        .select("id, type, title, body, tags, metadata, status, confidence, source, source_agent, task_id, project_id, created_at, updated_at")
+        .eq("user_id", userId)
+        .in("status", ["active", "approved", "executing"]);
+
+      if (args.project_id) query = query.eq("project_id", args.project_id as string);
+      if (args.task_id) query = query.eq("task_id", args.task_id as string);
+      if (args.type) query = query.eq("type", args.type as string);
+      if (args.tags && (args.tags as string[]).length > 0) {
+        query = query.contains("tags", args.tags as string[]);
+      }
+      if (args.search) {
+        query = query.textSearch("title", args.search as string, { type: "websearch" });
+      }
+
+      query = query
+        .order("updated_at", { ascending: false })
+        .limit((args.limit as number) || 20);
+
+      const { data, error } = await query;
+      if (error) throw new Error(error.message);
+
+      return json({ entries: data || [], count: (data || []).length });
+    }
+
+    case "add_context": {
+      const contextType = args.type as string;
+      const validTypes = ["decision", "constraint", "preference", "pattern", "learning", "principle"];
+      if (!validTypes.includes(contextType)) {
+        throw new Error(`Invalid type: ${contextType}. Must be one of: ${validTypes.join(", ")}`);
+      }
+
+      // Handle supersession
+      if (args.supersedes) {
+        await sb
+          .from("planning_context")
+          .update({ status: "superseded", superseded_by: null })
+          .eq("id", args.supersedes as string);
+      }
+
+      const { data: entry, error: insertErr } = await sb
+        .from("planning_context")
+        .insert({
+          user_id: userId,
+          project_id: (args.project_id as string) || null,
+          task_id: (args.task_id as string) || null,
+          type: contextType,
+          title: args.title as string,
+          body: args.body as string,
+          tags: (args.tags as string[]) || [],
+          status: "active",
+          source: "agent",
+          source_agent: detectExecutor(),
+          confidence: (args.confidence as number) ?? 1.0,
+        })
+        .select("id, status")
+        .single();
+      if (insertErr) throw new Error(insertErr.message);
+
+      // Link supersession
+      if (args.supersedes) {
+        await sb
+          .from("planning_context")
+          .update({ superseded_by: entry!.id })
+          .eq("id", args.supersedes as string);
+      }
+
+      return json({ context_id: entry!.id, status: entry!.status });
+    }
+
+    case "record_learning": {
+      const taskId = args.task_id as string;
+      const promote = !!args.promote;
+
+      // Look up project_id from the task's board
+      let projectId: string | null = null;
+      try {
+        const { data: card } = await sb
+          .from("kanban_cards")
+          .select("board_id")
+          .eq("id", taskId)
+          .single();
+        if (card) {
+          const { data: board } = await sb
+            .from("kanban_boards")
+            .select("project_id")
+            .eq("id", card.board_id)
+            .single();
+          if (board?.project_id) projectId = board.project_id;
+        }
+      } catch {
+        // Non-blocking
+      }
+
+      const metadata: Record<string, unknown> = {};
+      if (args.learning_type) metadata.learning_type = args.learning_type;
+      metadata.source_task_id = taskId;
+
+      // Task-scoped learning
+      const { data: learning, error: learnErr } = await sb
+        .from("planning_context")
+        .insert({
+          user_id: userId,
+          project_id: projectId,
+          task_id: taskId,
+          type: "learning",
+          title: args.title as string,
+          body: args.body as string,
+          tags: (args.tags as string[]) || [],
+          metadata,
+          status: "active",
+          source: "agent",
+          source_agent: detectExecutor(),
+        })
+        .select("id")
+        .single();
+      if (learnErr) throw new Error(learnErr.message);
+
+      let promotedId: string | null = null;
+
+      if (promote && projectId) {
+        const promoteMeta = { ...metadata, promoted: true, source_learning_id: learning!.id };
+        const { data: promoted } = await sb
+          .from("planning_context")
+          .insert({
+            user_id: userId,
+            project_id: projectId,
+            task_id: null,
+            type: "learning",
+            title: args.title as string,
+            body: args.body as string,
+            tags: (args.tags as string[]) || [],
+            metadata: promoteMeta,
+            status: "active",
+            source: "agent",
+            source_agent: detectExecutor(),
+          })
+          .select("id")
+          .single();
+        if (promoted) promotedId = promoted.id;
+      }
+
+      return json({ learning_id: learning!.id, promoted_id: promotedId });
+    }
+
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
@@ -1238,6 +1705,30 @@ export async function buildProjectContextMd(
       parts.push(`- **${i.title || "Untitled"}**: ${i.content || ""}\n`);
     }
     sections.push(parts.join("\n"));
+  }
+
+  // Planning context (decisions, patterns, principles, learnings)
+  try {
+    const { data: contextEntries } = await sb
+      .from("planning_context")
+      .select("type, title, body, confidence")
+      .eq("project_id", projectId)
+      .in("status", ["active", "approved"])
+      .in("type", ["decision", "constraint", "preference", "pattern", "learning", "principle"])
+      .order("updated_at", { ascending: false })
+      .limit(15);
+
+    if (contextEntries && contextEntries.length > 0) {
+      const parts = [`## Knowledge Base (${contextEntries.length})\n`];
+      for (const e of contextEntries) {
+        const conf = (e.confidence as number) < 1 ? ` (confidence: ${e.confidence})` : "";
+        const preview = (e.body as string).length > 200 ? (e.body as string).slice(0, 200) + "..." : e.body;
+        parts.push(`- **[${e.type}] ${e.title}**${conf}: ${preview}\n`);
+      }
+      sections.push(parts.join("\n"));
+    }
+  } catch {
+    // Non-blocking — planning_context table may not exist yet
   }
 
   let result = sections.join("\n");
