@@ -1,6 +1,16 @@
 # CrowdListen Planner
 
-> Planning and delegation system for AI agents.
+> Allow your agent to learn from experience, create an evolving library of context for agent swarms.
+
+[English](README.md) | [中文文档](README-CN.md)
+
+## Highlights
+
+1. **Agents that get smarter** — Every task captures decisions, patterns, and learnings. The next task inherits all of it.
+2. **Context follows you across agents** — Cloud-synced knowledge base. Switch from Claude Code to Cursor to Gemini CLI — context comes with you.
+3. **Plans as first-class artifacts** — Draft → review → approved → executing → done. Versioned, with human feedback loops.
+4. **Multi-agent coordination** — Parallel sessions let multiple agents work on the same task with shared context.
+5. **One command setup** — `npx @crowdlisten/planner login` configures 5 agents automatically. No env vars, no JSON editing.
 
 ## Setup
 
