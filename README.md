@@ -1,4 +1,4 @@
-# CrowdListen Planner
+# CrowdListen Harness
 
 > Allow your agent to learn from experience, create an evolving library of context for agent swarms.
 
@@ -10,13 +10,13 @@ AI agents are stateless. Every time you start a new session, your agent starts f
 
 This gets worse when you use multiple agents. Your Claude Code session figured out your team's deployment conventions, but when you switch to Cursor for a quick fix, that knowledge is gone. When Gemini CLI picks up a task overnight, it has no idea what happened before it arrived. Every agent is an island.
 
-CrowdListen Planner fixes this. It gives your agents a shared, cloud-synced knowledge base that persists across sessions, across tools, and across agents. Every task your agent completes captures decisions, patterns, and learnings. The next task inherits all of it. Over time, your agents don't just execute — they get smarter.
+CrowdListen Harness fixes this. It gives your agents a shared, cloud-synced knowledge base that persists across sessions, across tools, and across agents. Every task your agent completes captures decisions, patterns, and learnings. The next task inherits all of it. Over time, your agents don't just execute — they get smarter.
 
 ## What You Get
 
-**A knowledge base that compounds.** When your agent makes an architectural decision, resolves a tricky bug, or discovers a pattern in your codebase, CrowdListen Planner captures it. The next time any agent works on a related task, that knowledge is surfaced automatically. You stop re-explaining context and start building on what came before.
+**A knowledge base that compounds.** When your agent makes an architectural decision, resolves a tricky bug, or discovers a pattern in your codebase, CrowdListen Harness captures it. The next time any agent works on a related task, that knowledge is surfaced automatically. You stop re-explaining context and start building on what came before.
 
-**Plans as first-class artifacts.** Most task trackers treat plans as free-text descriptions. CrowdListen Planner treats them as versioned, reviewable artifacts with a lifecycle: draft, review, approved, executing, done. Your agent drafts a plan. You review it, leave feedback. The agent incorporates your notes, archives the previous version, and proceeds. Every decision and iteration is preserved.
+**Plans as first-class artifacts.** Most task trackers treat plans as free-text descriptions. CrowdListen Harness treats them as versioned, reviewable artifacts with a lifecycle: draft, review, approved, executing, done. Your agent drafts a plan. You review it, leave feedback. The agent incorporates your notes, archives the previous version, and proceeds. Every decision and iteration is preserved.
 
 **Context that follows you across agents.** Switch from Claude Code to Cursor to Gemini CLI — the knowledge base comes with you. Cloud-synced through Supabase, so no matter which agent picks up the work, it has the full history of what was tried, what worked, and what didn't.
 
@@ -53,7 +53,7 @@ Or sign in at [crowdlisten.com](https://crowdlisten.com) and your agent can read
 
 ## How It Works
 
-CrowdListen Planner is an MCP server — your agent calls its 20 tools directly, the same way it calls any other MCP tool. The typical workflow looks like this:
+CrowdListen Harness is an MCP server — your agent calls its 22 tools directly, the same way it calls any other MCP tool. The typical workflow looks like this:
 
 1. **Pick up a task.** Your agent calls `list_tasks` to see what's available, then `claim_task` to start work. When it claims a task, it receives the full context: relevant knowledge base entries, existing plans, and a semantic map of related decisions.
 
@@ -71,7 +71,7 @@ Plans are optional. Quick tasks can skip straight to execution. But the knowledg
 
 CrowdListen is two MCP servers that work together:
 
-**Insights** discovers what audiences are saying across social platforms — Reddit, YouTube, TikTok, Twitter, Instagram, Xiaohongshu, and more. **Planner** turns that signal into planned, tracked work with a knowledge base that compounds across every task. Together, your agent can research a topic, plan a response, execute it, and remember what it learned for next time.
+**Insights** discovers what audiences are saying across social platforms — Reddit, YouTube, TikTok, Twitter, Instagram, Xiaohongshu, and more. **Harness** turns that signal into planned, tracked work with a knowledge base that compounds across every task. Together, your agent can research a topic, plan a response, execute it, and remember what it learned for next time.
 
 ```bash
 # Install both with one command
@@ -147,6 +147,33 @@ npx @crowdlisten/planner whoami   # Check current user
 ## For Agents
 
 See [AGENTS.md](AGENTS.md) for machine-readable capability descriptions, MCP config, and example workflows.
+
+## Configuration
+
+### Environment Variables
+
+CrowdListen Harness uses sensible defaults. These are only needed if you're self-hosting or overriding the default backend:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CROWDLISTEN_URL` | `https://crowdlisten.com` | Supabase project URL |
+| `CROWDLISTEN_ANON_KEY` | Built-in default | Supabase anonymous key |
+| `CROWDLISTEN_APP_URL` | `https://crowdlisten.com` | Web app URL (used for login redirects) |
+
+### Auto-Executor Detection
+
+When your agent calls `claim_task` or `start_session` without specifying an executor, Harness auto-detects which agent is running by checking environment variables:
+
+| Agent | Detection |
+|-------|-----------|
+| Claude Code | `CLAUDE_CODE=1` or `CLAUDE_SESSION_ID` |
+| Cursor | `CURSOR_SESSION_ID` or `CURSOR_TRACE_ID` |
+| Gemini CLI | `GEMINI_CLI` |
+| Codex | `CODEX_SESSION_ID` |
+| OpenClaw | `OPENCLAW_SESSION` or `OPENCLAW_AGENT` |
+| Amp | `AMP_SESSION_ID` |
+
+This means task ownership is automatically attributed to the right agent without any configuration.
 
 ## Development
 

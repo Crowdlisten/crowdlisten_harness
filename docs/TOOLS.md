@@ -1,6 +1,6 @@
 # Tools Reference
 
-Full parameter documentation for CrowdListen Planner tools.
+Full parameter documentation for CrowdListen Harness tools.
 
 ## Task Management
 

@@ -1,4 +1,4 @@
-# CrowdListen Planner — Agent Reference
+# CrowdListen Harness — Agent Reference
 
 Machine-readable capability description for AI agents.
 
@@ -6,7 +6,7 @@ Machine-readable capability description for AI agents.
 
 CrowdListen is two MCP servers that work together:
 - **Insights** ([crowdlisten](https://github.com/Crowdlisten/crowdlisten_insights)) — discovers audience signal from social platforms
-- **Planner** (this server) — plans and tracks work with a cloud-synced knowledge base
+- **Harness** (this server) — plans and tracks work with a cloud-synced knowledge base
 
 Install both with one command: `npx @crowdlisten/planner login`
 
@@ -32,7 +32,7 @@ Auto-configures MCP for Claude Code, Cursor, Gemini CLI, Codex, OpenClaw.
 
 | Interface | Access | Best for |
 |-----------|--------|----------|
-| MCP (this server) | Agents call 20 tools via stdio | AI agents — task management, planning, knowledge |
+| MCP (this server) | Agents call 22 tools via stdio | AI agents — task management, planning, knowledge |
 | CLI | `npx @crowdlisten/planner login/setup/logout/whoami` | Authentication and agent config only |
 
 ## Core Workflow (7 steps)
@@ -87,7 +87,7 @@ For multi-agent coordination on a single task. claim_task already creates one se
 - **list_sessions**(task_id, status?) — List sessions showing status and focus.
 - **update_session**(session_id, status?, focus?) — Update session: idle, running, completed, failed, stopped.
 
-## Setup Tools (2) — Board Management
+## Setup Tools (4) — Board Management
 
 Rarely needed — get_or_create_global_board handles most cases.
 
