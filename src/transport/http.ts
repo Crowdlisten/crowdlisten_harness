@@ -47,10 +47,11 @@ async function authenticateRequest(
   // Try as JWT first
   const { data, error } = await supabase.auth.getUser(token);
   if (!error && data.user) {
-    // Set session so RLS works
+    // Set session so RLS works — refresh_token must be non-empty
+    // for Supabase to properly set the auth context
     await supabase.auth.setSession({
       access_token: token,
-      refresh_token: "",
+      refresh_token: token, // reuse access_token; won't refresh but RLS works
     });
     return { supabase, userId: data.user.id };
   }

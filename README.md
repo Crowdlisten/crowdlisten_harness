@@ -84,25 +84,26 @@ recall({ search: "React" })                           → retrieve saved context
 
 After activation, new tools appear automatically via `tools/list_changed`. No restarts needed.
 
-### Skill Packs
+### Skill Packs (22 total)
 
-| Pack | Tools | Description |
-|------|-------|-------------|
-| **core** (always on) | 4 | Discovery + memory |
-| **planning** | 11 | Tasks, plans, progress tracking |
-| **knowledge** | 3 | Project knowledge base |
-| **social-listening** | 7 | Search social platforms (free) |
-| **audience-analysis** | 6 | AI-powered analysis (requires CROWDLISTEN_API_KEY) |
-| **spec-delivery** | 3 | Actionable specs from crowd feedback |
-| **sessions** | 3 | Multi-agent coordination |
-| **setup** | 5 | Board management |
-| **analysis** | 5 | Run analysis, continue, list, generate specs (agent-proxied) |
-| **content** | 4 | Ingest content, vector search, stats (agent-proxied) |
-| **generation** | 2 | PRD generation, section updates (agent-proxied) |
-| **llm** | 2 | Free LLM completion proxy — no API key required |
-| **agent-network** | 3 | Register agents, discover capabilities, share results |
+| Pack | Tools | Description | Auth |
+|------|-------|-------------|------|
+| **core** (always on) | 5 | Discovery + memory | Free |
+| **planning** | 11 | Tasks, plans, progress tracking | Free |
+| **knowledge** | 5 | Project knowledge base | Free |
+| **social-listening** | 7 | Search social platforms | Free |
+| **audience-analysis** | 6 | AI-powered analysis | API key |
+| **spec-delivery** | 3 | Actionable specs from crowd feedback | Free |
+| **sessions** | 3 | Multi-agent coordination | Free |
+| **setup** | 5 | Board management | Free |
+| **analysis** | 5 | Run analyses, continue, list, generate specs | API key |
+| **content** | 4 | Ingest content, vector search, stats | API key |
+| **generation** | 2 | PRD generation, section updates | API key |
+| **llm** | 2 | Free LLM completion proxy | Free |
+| **agent-network** | 3 | Register agents, discover capabilities | Mixed |
+| **legacy** | 6 | Previous-gen context extraction tools | Free |
 
-Plus: native SKILL.md workflow packs (competitive-analysis, content-creator, etc.) that deliver full methodology instructions when activated.
+Plus 8 **SKILL.md workflow packs** (competitive-analysis, content-creator, content-strategy, data-storytelling, heuristic-evaluation, market-research-reports, user-stories, ux-researcher) that deliver full methodology instructions when activated — no tools, just expert prompts.
 
 ## What You Can Do
 
@@ -150,6 +151,141 @@ start_spec({ spec_id: "..." })
 ### Remember Across Sessions
 
 Your agent saves context with `remember` and retrieves it with `recall`. Switch from Claude Code to Cursor to Gemini CLI — the knowledge comes with you.
+
+## End-to-End Walkthrough
+
+Here's what happens when you use CrowdListen from scratch, step by step.
+
+### Step 1: Login and Auto-Configure
+
+```bash
+npx @crowdlisten/planner login
+```
+
+Your browser opens → you sign in with Google/GitHub → the CLI auto-configures MCP for your agents (Claude Code, Cursor, Gemini CLI, Codex, Amp, OpenClaw). Restart your agent.
+
+### Step 2: Your Agent Discovers Tools
+
+On startup, your agent sees **5 core tools** — nothing else:
+
+```
+list_skill_packs          → see all 22 available packs
+activate_skill_pack       → unlock a pack's tools
+remember                  → save context across sessions
+recall                    → retrieve saved context
+set_preferences           → configure telemetry, auto-activate, etc.
+```
+
+This is progressive disclosure. Your agent's tool context stays small until it needs more.
+
+### Step 3: Browse and Activate Packs
+
+Your agent calls `list_skill_packs` and sees:
+
+```
+✓ active   | core                    |  5 tools | Discovery + memory
+  available | planning                | 11 tools | Tasks, plans, progress
+  available | social-listening        |  7 tools | Search Reddit, TikTok, YouTube...
+  available | analysis                |  5 tools | Run audience analyses (paid)
+  available | llm                     |  2 tools | Free LLM completion proxy
+  ... 17 more packs
+```
+
+To unlock planning tools:
+
+```
+activate_skill_pack({ pack_id: "planning" })
+→ { "activated": "planning", "newToolCount": 11 }
+→ tools/list_changed notification fires
+→ Agent now sees 16 tools (5 core + 11 planning)
+```
+
+No restart needed — the agent picks up new tools via `tools/list_changed`.
+
+### Step 4: Use the Tools
+
+**Create and manage tasks:**
+
+```
+create_task({ title: "Implement user auth", priority: "high" })
+→ { "task_id": "dcb80a64-...", "status": "created" }
+
+list_tasks()
+→ [{ "id": "dcb80a64-...", "title": "Implement user auth", "status": "To Do", ... }]
+
+claim_task({ task_id: "dcb80a64-..." })
+→ { "status": "claimed", "workspace": "...", "branch": "feature/implement-user-auth" }
+```
+
+**Save and recall context across sessions:**
+
+```
+remember({ type: "preference", title: "Test framework", content: "Use Vitest, not Jest" })
+→ { "status": "saved", "block_id": "..." }
+
+recall({ search: "Vitest" })
+→ [{ "type": "preference", "title": "Test framework", "content": "Use Vitest, not Jest" }]
+```
+
+Context persists in `~/.crowdlisten/context.json`. Switch agents (Claude Code → Cursor → Gemini CLI) and the knowledge comes with you.
+
+**Search social platforms (after activating social-listening):**
+
+```
+activate_skill_pack({ pack_id: "social-listening" })
+
+search_content({ platform: "reddit", query: "cursor vs claude code", limit: 5 })
+→ [{ "title": "...", "content": "...", "upvotes": 847, "comments": 234, ... }]
+```
+
+### Step 5: Remote Access (HTTP Transport)
+
+For remote agents or multi-tenant setups:
+
+```bash
+npx @crowdlisten/planner serve          # Starts on :3848
+```
+
+All 54 tools are available via HTTP:
+
+```bash
+# Health check
+curl http://localhost:3848/health
+→ { "status": "ok", "version": "0.6.0", "tools": 54 }
+
+# OpenAPI spec (55 paths, 11 tags)
+curl http://localhost:3848/openapi.json
+
+# MCP tool calls (requires auth)
+curl -X POST http://localhost:3848/mcp \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"list_projects","arguments":{}}}'
+```
+
+Connect any MCP client:
+
+```json
+{ "url": "http://localhost:3848/mcp", "headers": { "Authorization": "Bearer YOUR_TOKEN" } }
+```
+
+### Step 6: Full Pipeline (Crowd Feedback → Implementation)
+
+The end-to-end pipeline for turning audience signal into code:
+
+```
+1. activate_skill_pack("social-listening")
+2. search_content({ platform: "reddit", query: "your product name" })
+3. activate_skill_pack("audience-analysis")
+4. deep_analyze({ content_ids: [...] })               → segments, pain points, signals
+5. activate_skill_pack("spec-delivery")
+6. get_specs({ priority: "high", min_confidence: 0.8 }) → actionable specs
+7. start_spec({ spec_id: "..." })                      → creates task, branch, workspace
+8. activate_skill_pack("planning")
+9. claim_task({ task_id: "..." })                      → start implementing
+```
+
+Each spec carries evidence citations from real user feedback, a confidence score, and acceptance criteria.
 
 ## MCP Tools Reference
 

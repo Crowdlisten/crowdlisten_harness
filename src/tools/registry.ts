@@ -137,6 +137,51 @@ export function initializeRegistry(skillsDir: string): void {
     toolNames: ["get_specs", "get_spec_detail", "start_spec"],
   });
 
+  // ── Agent-Proxied Packs (proxy to agent.crowdlisten.com) ────────────
+
+  // Analysis — run full audience analysis, continue, list results
+  packs.set("analysis", {
+    id: "analysis",
+    name: "Analysis Engine",
+    description: "Run audience analyses, continue with follow-ups, list results, generate specs. Requires CROWDLISTEN_API_KEY.",
+    toolNames: [
+      "run_analysis", "continue_analysis", "get_analysis",
+      "list_analyses", "generate_specs",
+    ],
+  });
+
+  // Content & Vectors — ingest, search, manage content
+  packs.set("content", {
+    id: "content",
+    name: "Content & Vectors",
+    description: "Ingest content for vector storage, semantic search, stats, deletion. Requires CROWDLISTEN_API_KEY.",
+    toolNames: ["ingest_content", "search_vectors", "get_content_stats", "delete_content"],
+  });
+
+  // Document Generation — PRDs from analysis
+  packs.set("generation", {
+    id: "generation",
+    name: "Document Generation",
+    description: "Generate PRDs from analysis results, update sections. Requires CROWDLISTEN_API_KEY.",
+    toolNames: ["generate_prd", "update_prd_section"],
+  });
+
+  // LLM Proxy — free completion and model listing
+  packs.set("llm", {
+    id: "llm",
+    name: "LLM Proxy",
+    description: "Free LLM completion proxy — no API key needed. List available models and run completions.",
+    toolNames: ["llm_complete", "list_llm_models"],
+  });
+
+  // Agent Network — register, discover, share
+  packs.set("agent-network", {
+    id: "agent-network",
+    name: "Agent Network",
+    description: "Register agents, discover capabilities, submit analysis results to the network.",
+    toolNames: ["register_agent", "get_capabilities", "submit_analysis"],
+  });
+
   // Legacy — context extraction tools (hidden by default for existing users, replaced by remember/recall)
   packs.set("legacy", {
     id: "legacy",
