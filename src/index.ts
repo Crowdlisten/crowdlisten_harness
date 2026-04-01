@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 
 /**
- * CrowdListen Tasks — Planning and Task Delegation for AI Agents
+ * CrowdListen — Unified MCP Server
  *
- * Decomposes specs into executable work and routes tasks to coding agents
- * (Claude Code, Cursor, Gemini CLI, Codex, OpenClaw, Amp, etc.) with project
- * context intact. Closes the loop between product intent and implementation.
+ * Single server combining planning, social listening, skill packs, and
+ * knowledge management with progressive disclosure.
+ *
+ * Pattern: Start with ~4 discovery tools → activate skill packs on demand
+ *          → fire tools/list_changed so the agent sees new tools.
  *
  * First time:  npx @crowdlisten/planner login
  * Then add to your agent config and go.
@@ -20,6 +22,8 @@ import {
 import { createClient } from "@supabase/supabase-js";
 import * as http from "http";
 import * as crypto from "crypto";
+import * as path from "path";
+import { fileURLToPath } from "url";
 
 import {
   loadAuth,
@@ -39,6 +43,20 @@ import {
   runContextCLI,
   runContextWeb,
 } from "./context/cli.js";
+import { loadUserState, saveUserState } from "./context/user-state.js";
+import {
+  initializeRegistry,
+  registerTools,
+  getToolsForPacks,
+  isInsightsTool,
+} from "./tools/registry.js";
+import {
+  INSIGHTS_TOOLS,
+  handleInsightsTool,
+  cleanupInsights,
+} from "./insights/index.js";
+import { recordEvent, shouldOnboard, getOnboardingPrompt, buildToolPackMap } from "./telemetry.js";
+import { checkSuggestion } from "./suggestions.js";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -50,6 +68,10 @@ const CROWDLISTEN_ANON_KEY =
 
 const CROWDLISTEN_APP_URL =
   process.env.CROWDLISTEN_APP_URL || "https://crowdlisten.com";
+
+// Resolve skills directory relative to this file
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const SKILLS_DIR = path.resolve(__dirname, "..", "skills");
 
 // ─── Browser-Based Login ────────────────────────────────────────────────────
 
@@ -121,8 +143,7 @@ async function interactiveLogin(): Promise<StoredAuth> {
             "To connect manually, add this to your agent's MCP config:\n"
           );
           console.error(JSON.stringify({ mcpServers: {
-            "crowdlisten/harness": MCP_ENTRY,
-            "crowdlisten/insights": { command: "npx", args: ["-y", "crowdlisten"] },
+            crowdlisten: MCP_ENTRY,
           } }, null, 2));
           console.error("");
         }
@@ -236,8 +257,7 @@ if (command === "login") {
       console.error("Supported agents: Claude Code, Cursor, Gemini CLI, Codex, Amp, OpenClaw");
       console.error("If your agent isn't listed, add this to its MCP config:\n");
       console.error(JSON.stringify({
-        "crowdlisten/harness": MCP_ENTRY,
-        "crowdlisten/insights": { command: "npx", args: ["-y", "crowdlisten"] },
+        crowdlisten: MCP_ENTRY,
       }, null, 2));
     }
     process.exit(0);
@@ -253,14 +273,14 @@ if (command === "login") {
   runSetupContext().then(() => process.exit(0));
 } else if (command === "help" || command === "--help" || command === "-h") {
   console.error(`
-CrowdListen Planner CLI
+CrowdListen — Unified MCP Server
 
 COMMANDS:
   login          Sign in + auto-configure your coding agents
   setup          Re-run auto-configure for agent MCP configs
   logout         Clear saved credentials
   whoami         Show current user
-  context        Launch context extraction web UI (port 3847)
+  context        Launch skill pack dashboard (port 3847)
   context <file> Process a file through the context pipeline (CLI mode)
   setup-context  Configure LLM provider for context extraction
   help           Show this help
@@ -272,13 +292,10 @@ QUICK START:
   That's it. Login auto-detects and configures Claude Code,
   Cursor, Gemini CLI, Codex, and Amp. Just restart your agent.
 
-  Works with any MCP-compatible agent including OpenClaw.
+  Your agent starts with 4 discovery tools:
+    list_skill_packs, activate_skill_pack, remember, recall
 
-CONTEXT EXTRACTION:
-
-  npx @crowdlisten/planner setup-context    # Configure your LLM API key
-  npx @crowdlisten/planner context chat.json # Extract context from a file
-  npx @crowdlisten/planner context           # Launch web UI
+  Activate packs to unlock more: planning, social-listening, etc.
 `);
   process.exit(0);
 } else {
@@ -291,26 +308,124 @@ CONTEXT EXTRACTION:
 async function startMcpServer() {
   const { supabase: sb, userId } = await getAuthedClient();
 
+  // Initialize the skill pack registry with all tool definitions
+  initializeRegistry(SKILLS_DIR);
+  registerTools(TOOLS);
+  registerTools(INSIGHTS_TOOLS);
+
   const server = new Server(
-    { name: "crowdlisten/harness", version: "0.1.5" },
-    { capabilities: { tools: {} } }
+    { name: "crowdlisten", version: "1.0.0" },
+    { capabilities: { tools: { listChanged: true } } }
   );
 
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: TOOLS,
-  }));
+  // Dynamic ListTools — returns tools based on active packs
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    const state = loadUserState();
+    const tools = getToolsForPacks(state.activePacks);
+    return { tools };
+  });
 
+  // Build tool→pack mapping for telemetry tagging
+  const toolPackMap = buildToolPackMap([
+    { id: "core", toolNames: ["list_skill_packs", "activate_skill_pack", "remember", "recall", "set_preferences"] },
+    { id: "planning", toolNames: ["list_tasks", "create_task", "get_task", "update_task", "claim_task", "complete_task", "log_progress", "delete_task", "create_plan", "get_plan", "update_plan"] },
+    { id: "knowledge", toolNames: ["query_context", "add_context", "record_learning", "log_learning", "search_learnings"] },
+    { id: "social-listening", toolNames: ["search_content", "get_content_comments", "get_trending_content", "get_user_content", "get_platform_status", "health_check", "extract_url"] },
+    { id: "audience-analysis", toolNames: ["analyze_content", "cluster_opinions", "enrich_content", "deep_analyze", "extract_insights", "research_synthesis"] },
+    { id: "sessions", toolNames: ["start_session", "list_sessions", "update_session"] },
+    { id: "setup", toolNames: ["get_or_create_global_board", "list_projects", "list_boards", "create_board", "migrate_to_global_board"] },
+    { id: "spec-delivery", toolNames: ["get_specs", "get_spec_detail", "start_spec"] },
+  ]);
+
+  // Unified CallTool handler with telemetry + suggestions interceptor
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: toolArgs } = request.params;
+    const args = (toolArgs || {}) as Record<string, unknown>;
+    const startTime = Date.now();
+
     try {
-      const result = await handleTool(
-        sb,
-        userId,
-        name,
-        (toolArgs || {}) as Record<string, unknown>
+      let result: string;
+
+      if (isInsightsTool(name)) {
+        result = await handleInsightsTool(name, args);
+      } else {
+        result = await handleTool(sb, userId, name, args);
+      }
+
+      // After activate_skill_pack, fire tools/list_changed
+      if (name === "activate_skill_pack") {
+        try {
+          const parsed = JSON.parse(result);
+          if (parsed._needsListChanged) {
+            delete parsed._needsListChanged;
+            result = JSON.stringify(parsed, null, 2);
+            await server.sendToolListChanged();
+          }
+        } catch {
+          // Non-fatal
+        }
+      }
+
+      // ── POST hooks: telemetry, onboarding, suggestions ──────────
+      const state = loadUserState();
+      const durationMs = Date.now() - startTime;
+      const pack = toolPackMap.get(name) || "unknown";
+
+      // Telemetry recording
+      recordEvent(
+        { event: "tool_call", tool: name, pack, duration_ms: durationMs, success: true },
+        state.preferences.telemetry,
+        state.installationId
       );
-      return { content: [{ type: "text" as const, text: result }] };
+
+      // Build response content
+      const content: Array<{ type: "text"; text: string }> = [
+        { type: "text" as const, text: result },
+      ];
+
+      // Onboarding check — append prompt if a step is pending
+      const pendingStep = shouldOnboard(state);
+      if (pendingStep) {
+        const prompt = getOnboardingPrompt(pendingStep);
+        if (prompt) {
+          content.push({
+            type: "text" as const,
+            text: JSON.stringify({
+              _onboarding: {
+                step: pendingStep,
+                title: prompt.title,
+                message: prompt.message,
+              },
+            }),
+          });
+        }
+      }
+
+      // Proactive suggestions check
+      const suggestion = checkSuggestion(
+        result,
+        state.activePacks,
+        state.preferences.proactiveSuggestions
+      );
+      if (suggestion) {
+        content.push({
+          type: "text" as const,
+          text: JSON.stringify({ _suggestion: suggestion }),
+        });
+      }
+
+      return { content };
     } catch (err: unknown) {
+      // Record failed telemetry
+      const state = loadUserState();
+      const durationMs = Date.now() - startTime;
+      const pack = toolPackMap.get(name) || "unknown";
+      recordEvent(
+        { event: "tool_call", tool: name, pack, duration_ms: durationMs, success: false },
+        state.preferences.telemetry,
+        state.installationId
+      );
+
       const message = err instanceof Error ? err.message : String(err);
       return {
         content: [
@@ -321,7 +436,19 @@ async function startMcpServer() {
     }
   });
 
+  // Graceful shutdown
+  const cleanup = async () => {
+    console.error("[Shutdown] Cleaning up...");
+    await cleanupInsights();
+    process.exit(0);
+  };
+
+  process.on("SIGINT", cleanup);
+  process.on("SIGTERM", cleanup);
+
+  server.onerror = (error) => console.error("[MCP Error]", error);
+
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error("CrowdListen Planner MCP server running");
+  console.error("CrowdListen unified MCP server running (progressive disclosure)");
 }

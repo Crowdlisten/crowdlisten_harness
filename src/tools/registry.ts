@@ -65,7 +65,7 @@ export function initializeRegistry(skillsDir: string): void {
     id: "core",
     name: "Core",
     description: "Discovery + memory — list skill packs, activate packs, remember and recall context",
-    toolNames: ["list_skill_packs", "activate_skill_pack", "remember", "recall"],
+    toolNames: ["list_skill_packs", "activate_skill_pack", "remember", "recall", "set_preferences"],
   });
 
   // Planning — task management
@@ -85,7 +85,7 @@ export function initializeRegistry(skillsDir: string): void {
     id: "knowledge",
     name: "Knowledge Base",
     description: "Project knowledge management — query decisions, add context, record learnings",
-    toolNames: ["query_context", "add_context", "record_learning"],
+    toolNames: ["query_context", "add_context", "record_learning", "log_learning", "search_learnings"],
   });
 
   // Social listening — free tools

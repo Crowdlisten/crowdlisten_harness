@@ -15,8 +15,10 @@ import { runPipeline } from "./context/pipeline.js";
 import { getBlocks, addBlocks } from "./context/store.js";
 import { matchSkills, discoverSkills, searchSkills, getSkillCategories, getFullCatalog } from "./context/matcher.js";
 import { loadUserState, saveUserState, activatePack, deactivatePack } from "./context/user-state.js";
+import type { TelemetryLevel } from "./context/user-state.js";
 import { listPacks, hasPack, getPack, getSkillMdContent, getPackTools } from "./tools/registry.js";
 import type { ContextBlock } from "./context/types.js";
+import { logLearning, searchLearnings } from "./learnings.js";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -811,6 +813,108 @@ export const TOOLS = [
         },
       },
       required: ["spec_id"],
+    },
+  },
+  // ── Preferences ─────────────────────────────────────────────────
+  {
+    name: "set_preferences",
+    description:
+      "Set user preferences for telemetry, proactive suggestions, and cross-project learnings. " +
+      "Telemetry levels: off (no tracking), anonymous (local-only stats), community (anonymous aggregate stats). " +
+      "Pass only the fields you want to change.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        telemetry: {
+          type: "string",
+          enum: ["off", "anonymous", "community"],
+          description: "Telemetry privacy level",
+        },
+        proactive_suggestions: {
+          type: "boolean",
+          description: "Enable/disable proactive skill pack suggestions",
+        },
+        cross_project_learnings: {
+          type: "boolean",
+          description: "Enable/disable cross-project learning persistence",
+        },
+      },
+    },
+  },
+  // ── Local Learnings ──────────────────────────────────────────────
+  {
+    name: "log_learning",
+    description:
+      "Record a learning or insight for future sessions. Learnings persist locally across conversations and optionally across projects. " +
+      "Uses confidence decay — observed/inferred learnings fade over time, user-stated ones don't.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        type: {
+          type: "string",
+          enum: ["pattern", "pitfall", "preference", "architecture", "tool", "operational"],
+          description: "Category of learning",
+        },
+        key: {
+          type: "string",
+          description: "Short identifier for dedup (e.g. 'supabase-rls-gotcha')",
+        },
+        insight: {
+          type: "string",
+          description: "The actual learning",
+        },
+        confidence: {
+          type: "number",
+          description: "Confidence level 1-10",
+        },
+        source: {
+          type: "string",
+          enum: ["observed", "user-stated", "inferred"],
+          description: "How this learning was obtained",
+        },
+        skill: {
+          type: "string",
+          description: "Which skill pack or context generated this (e.g. 'planning', 'social-listening')",
+        },
+        project: {
+          type: "string",
+          description: "Project name for cross-project filtering",
+        },
+        files: {
+          type: "array",
+          items: { type: "string" },
+          description: "Relevant file paths",
+        },
+      },
+      required: ["type", "key", "insight", "confidence", "source"],
+    },
+  },
+  {
+    name: "search_learnings",
+    description:
+      "Search past learnings by keyword. Returns learnings with confidence-decayed scores, sorted by relevance. " +
+      "Use cross_project=true to search across all projects (requires cross_project_learnings preference enabled).",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        query: {
+          type: "string",
+          description: "Search keyword",
+        },
+        cross_project: {
+          type: "boolean",
+          description: "Search across all projects (default: false, requires preference enabled)",
+        },
+        project: {
+          type: "string",
+          description: "Current project name for scoping (defaults to cwd basename)",
+        },
+        limit: {
+          type: "number",
+          description: "Max results (default 10)",
+        },
+      },
+      required: ["query"],
     },
   },
 ];
@@ -2188,6 +2292,126 @@ export async function handleTool(
           objective: spec.objective,
           acceptance_criteria: spec.acceptance_criteria,
         },
+      });
+    }
+
+    // ── Preferences ─────────────────────────────────────────────────
+    case "set_preferences": {
+      const state = loadUserState();
+      const changed: string[] = [];
+
+      if (args.telemetry !== undefined) {
+        const level = args.telemetry as TelemetryLevel;
+        if (!["off", "anonymous", "community"].includes(level)) {
+          return json({ error: "Invalid telemetry level. Use: off, anonymous, community" });
+        }
+        state.preferences.telemetry = level;
+        changed.push(`telemetry → ${level}`);
+
+        // Mark telemetry onboarding complete
+        if (!state.onboardingCompleted.includes("telemetry")) {
+          state.onboardingCompleted.push("telemetry");
+        }
+      }
+
+      if (args.proactive_suggestions !== undefined) {
+        state.preferences.proactiveSuggestions = !!args.proactive_suggestions;
+        changed.push(`proactive_suggestions → ${state.preferences.proactiveSuggestions}`);
+
+        if (!state.onboardingCompleted.includes("proactive")) {
+          state.onboardingCompleted.push("proactive");
+        }
+      }
+
+      if (args.cross_project_learnings !== undefined) {
+        state.preferences.crossProjectLearnings = !!args.cross_project_learnings;
+        changed.push(`cross_project_learnings → ${state.preferences.crossProjectLearnings}`);
+
+        if (!state.onboardingCompleted.includes("learnings")) {
+          state.onboardingCompleted.push("learnings");
+        }
+      }
+
+      if (changed.length === 0) {
+        return json({ message: "No preferences changed. Pass telemetry, proactive_suggestions, or cross_project_learnings." });
+      }
+
+      saveUserState(state);
+      return json({
+        updated: changed,
+        preferences: {
+          telemetry: state.preferences.telemetry,
+          proactiveSuggestions: state.preferences.proactiveSuggestions,
+          crossProjectLearnings: state.preferences.crossProjectLearnings,
+        },
+      });
+    }
+
+    // ── Local Learnings ──────────────────────────────────────────────
+    case "log_learning": {
+      const type = args.type as string;
+      const key = args.key as string;
+      const insight = args.insight as string;
+      const confidence = args.confidence as number;
+      const source = args.source as string;
+
+      if (!type || !key || !insight || confidence == null || !source) {
+        return json({ error: "Missing required parameters: type, key, insight, confidence, source" });
+      }
+
+      if (confidence < 1 || confidence > 10) {
+        return json({ error: "Confidence must be between 1 and 10" });
+      }
+
+      const learning = logLearning({
+        type: type as any,
+        key,
+        insight,
+        confidence,
+        source: source as any,
+        skill: (args.skill as string) || "unknown",
+        project: (args.project as string) || path.basename(process.cwd()),
+        files: args.files as string[] | undefined,
+      });
+
+      return json({
+        logged: true,
+        id: learning.id,
+        key: learning.key,
+        type: learning.type,
+        confidence: learning.confidence,
+        source: learning.source,
+        project: learning.project,
+      });
+    }
+
+    case "search_learnings": {
+      const query = args.query as string;
+      if (!query) return json({ error: "Missing required parameter: query" });
+
+      const crossProject = !!args.cross_project;
+      const state = loadUserState();
+
+      // Gate cross-project search behind preference
+      if (crossProject && !state.preferences.crossProjectLearnings) {
+        return json({
+          error: "Cross-project learnings are disabled. Enable with: set_preferences({ cross_project_learnings: true })",
+        });
+      }
+
+      const results = searchLearnings(query, {
+        crossProject,
+        currentProject: (args.project as string) || path.basename(process.cwd()),
+        limit: (args.limit as number) || 10,
+      });
+
+      return json({
+        results,
+        count: results.length,
+        crossProject,
+        hint: results.length === 0
+          ? "No learnings found. Use log_learning to record insights for future sessions."
+          : undefined,
       });
     }
 
