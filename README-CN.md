@@ -1,26 +1,20 @@
-# CrowdListen Harness
+# CrowdListen
 
-> 让你的 AI 智能体从经验中学习，为智能体集群构建不断进化的上下文知识库。
+> 一个统一的 AI 智能体 MCP 服务器。规划工作、搜索社交平台、积累知识——通过渐进式技能披露，智能体只加载当前需要的工具。
 
 [English](README.md) | [中文文档](README-CN.md)
 
-## 今天的 AI 智能体有什么问题？
+## 问题所在
 
-AI 智能体是无状态的。每次你开启新会话，智能体都从零开始。它不记得昨天做了什么决策、为什么选择了某个方案、上周在你的代码库中发现了什么模式。你只能反复解释相同的上下文、纠正相同的错误、看着它重新发现相同的解决方案。
+AI 智能体是无状态的。每次新会话都从零开始——不记得昨天的决策，不知道其他智能体发现了什么，也无法访问用户在七个平台上发布的真实反馈。你只能反复解释相同的上下文，错过散落在各处的用户信号，看着智能体重新发现已知的解决方案。
 
-当你使用多个智能体时，问题更加严重。你的 Claude Code 会话搞清了团队的部署规范，但当你切换到 Cursor 做个快速修复时，那些知识就消失了。当 Gemini CLI 在夜间接手任务时，它完全不知道之前发生了什么。每个智能体都是一座孤岛。
+CrowdListen 用一个 MCP 服务器解决三个问题：
 
-CrowdListen Harness 解决了这个问题。它为你的智能体提供一个共享的、云端同步的知识库，在会话之间、工具之间、智能体之间持久保存。你的智能体完成的每个任务都会捕获决策、模式和经验。下一个任务继承所有这些。随着时间推移，你的智能体不只是执行——它们变得越来越聪明。
+1. **规划和跟踪工作**——跨智能体共享知识库，持续积累。
+2. **搜索社交平台**——Reddit、YouTube、TikTok、Twitter/X、Instagram、小红书——返回智能体可推理的结构化数据。
+3. **记住所学**——下一次会话从所有积累开始，而非从零开始。
 
-## 你能得到什么
-
-**不断增值的知识库。** 当你的智能体做出架构决策、解决棘手的 Bug、或发现代码库中的模式时，CrowdListen Harness 会捕获这些知识。下次任何智能体处理相关任务时，这些知识会自动浮现。你不再需要重复解释上下文，而是在已有基础上持续构建。
-
-**计划作为一等工件。** 大多数任务追踪器把计划当作纯文本描述。CrowdListen Harness 把计划视为版本化、可审核的工件，拥有完整生命周期：草案 → 审核 → 批准 → 执行 → 完成。你的智能体起草计划，你审核并留下反馈，智能体融入你的意见，归档上一版本，继续推进。每个决策和迭代都被保留。
-
-**上下文跨智能体流转。** 从 Claude Code 切换到 Cursor 再到 Gemini CLI——知识库始终跟随你。通过 Supabase 云端同步，无论哪个智能体接手工作，它都能获取完整的历史：尝试过什么、什么有效、什么无效。
-
-**多智能体协作。** 通过并行会话让多个智能体处理同一任务。每个智能体都能获取共享上下文，并将新的发现回写。适合将大型任务拆分为并行工作流，而不失去整体一致性。
+你的智能体从 4 个发现工具开始。按需激活技能包——规划、社交聆听、受众分析——只加载当前任务需要的工具。
 
 ## 立即体验
 
@@ -30,18 +24,18 @@ CrowdListen Harness 解决了这个问题。它为你的智能体提供一个共
 npx @crowdlisten/planner login
 ```
 
-自动为 Claude Code、Cursor、Gemini CLI、Codex 和 OpenClaw 配置 MCP。同时安装 [CrowdListen Insights](https://github.com/Crowdlisten/crowdlisten_insights) 获取跨平台受众信号。无需环境变量，无需编辑 JSON，无需管理 API 密钥。
+自动为 Claude Code、Cursor、Gemini CLI、Codex、Amp 和 OpenClaw 配置 MCP。无需环境变量，无需编辑 JSON，无需管理 API 密钥。
 
 登录后重启智能体，即可开始调用工具。
 
 ### 手动配置
 
-如果你偏好手动配置，添加以下内容到智能体的 MCP 配置：
+添加以下内容到智能体的 MCP 配置：
 
 ```json
 {
   "mcpServers": {
-    "crowdlisten/planner": {
+    "crowdlisten": {
       "command": "npx",
       "args": ["-y", "@crowdlisten/planner"]
     }
@@ -49,68 +43,125 @@ npx @crowdlisten/planner login
 }
 ```
 
-或在 [crowdlisten.com](https://crowdlisten.com) 登录，你的智能体可以阅读 [AGENTS.md](AGENTS.md) 获取完整工具参考。
-
 ## 工作原理
 
-CrowdListen Harness 是一个 MCP 服务器——你的智能体直接调用它的 22 个工具，和调用其他 MCP 工具一样。典型的工作流如下：
+### 渐进式技能披露
 
-1. **领取任务。** 智能体调用 `list_tasks` 查看可用工作，然后调用 `claim_task` 开始。领取任务时，它会收到完整的上下文：相关知识库条目、现有计划和相关决策的语义地图。
+你的智能体从 4 个始终可用的工具开始：
 
-2. **先规划，再动手。** 对于非简单任务，智能体调用 `create_plan` 起草方案，包含假设、风险和成功标准。你审核计划、留下反馈，智能体迭代直到你批准。每个版本都被归档。
-
-3. **带上下文执行。** 工作过程中，智能体通过 `add_context` 记录进展和决策。这些不是一次性笔记——它们成为可搜索的知识，未来的任务可以查询。
-
-4. **捕获经验。** 任务完成后，智能体调用 `record_learning` 凝练发现。将经验提升为项目级，未来的每个智能体会话都能找到它。
-
-5. **下一个任务更智能。** 新任务开始时，`query_context` 搜索所有积累的决策、模式和经验。你的智能体不再从零开始——它从之前的所有积累开始。
-
-计划是可选的。简单任务可以直接跳到执行。但知识捕获始终适用，即使小任务也会为不断增长的上下文做出贡献。
-
-## CrowdListen 生态系统
-
-CrowdListen 是两个协同工作的 MCP 服务器：
-
-**Insights** 发现受众在各社交平台上的讨论——Reddit、YouTube、TikTok、Twitter、Instagram、小红书等。**Harness** 将这些信号转化为有计划、可追踪的工作，知识库在每个任务间不断积累。两者配合，你的智能体可以研究话题、规划应对、执行任务，并记住所学以备下次使用。
-
-```bash
-# 一条命令安装两者
-npx @crowdlisten/planner login
+```
+list_skill_packs()                                    → 查看可用技能包
+activate_skill_pack({ pack_id: "planning" })          → 解锁 11 个任务工具
+activate_skill_pack({ pack_id: "social-listening" })  → 解锁 7 个搜索工具
+remember({ type: "preference", title: "...", ... })   → 跨会话保存上下文
+recall({ search: "React" })                           → 检索已保存的上下文
 ```
 
-## MCP 工具
+激活后，新工具通过 `tools/list_changed` 自动出现。无需重启。
 
-### 任务管理
+### 技能包
+
+| 技能包 | 工具数 | 描述 |
+|--------|--------|------|
+| **core**（始终开启） | 4 | 发现 + 记忆 |
+| **planning** | 11 | 任务、计划、进度跟踪 |
+| **knowledge** | 3 | 项目知识库 |
+| **social-listening** | 7 | 搜索社交平台（免费） |
+| **audience-analysis** | 6 | AI 分析（需要 CROWDLISTEN_API_KEY） |
+| **sessions** | 3 | 多智能体协作 |
+| **setup** | 5 | 看板管理 |
+
+另有：原生 SKILL.md 工作流包（竞品分析、内容创作等），激活时提供完整方法论指导。
+
+## 你能做什么
+
+### 规划和跟踪工作
+
+智能体调用 `list_tasks` 查看任务，`claim_task` 开始工作，`create_plan` 起草带假设和风险的方案。你审核计划、留下反馈，智能体迭代。每个决策和经验都被捕获到知识库中，供未来任务查询。
+
+### 搜索社交平台
+
+一个工具搜索 Reddit、YouTube、TikTok、Twitter/X、Instagram、小红书和 Moltbook。返回带有互动指标、时间戳和作者信息的结构化帖子——无论来自哪个平台，格式完全一致。
+
+```bash
+# 也可作为 CLI 使用
+npx crowdlisten search reddit "cursor vs claude code" --limit 5
+npx crowdlisten vision https://news.ycombinator.com
+```
+
+### 从任意网站提取
+
+视觉模式对任意 URL 截图，发送给 LLM（Claude、Gemini 或 OpenAI），返回结构化数据。没有 API 的论坛？有付费墙的新闻网站评论？用 `extract_url` 搞定。
+
+### 分析受众信号
+
+付费 API 层增加观点聚类、深度分析（受众细分、竞争信号）和研究综合（单条查询生成跨平台报告）。核心提取功能完全免费且开源。
+
+### 跨会话记忆
+
+智能体用 `remember` 保存上下文，用 `recall` 检索。从 Claude Code 切换到 Cursor 再到 Gemini CLI——知识始终跟随你。
+
+## MCP 工具参考
+
+### 始终可用（4 个工具）
 
 | 工具 | 功能 |
 |------|------|
-| `list_tasks` | 列出看板上的任务（首先调用） |
+| `list_skill_packs` | 列出可用技能包及状态、工具数 |
+| `activate_skill_pack` | 激活技能包以解锁其工具 |
+| `remember` | 跨会话保存上下文（偏好、决策、模式、洞察） |
+| `recall` | 检索已保存的上下文块 |
+
+### 规划包（11 个工具）
+
+| 工具 | 功能 |
+|------|------|
+| `list_tasks` | 列出看板任务 |
 | `get_task` | 获取完整任务详情 |
 | `create_task` | 创建新任务 |
 | `update_task` | 更改标题、描述、状态、优先级 |
-| `claim_task` | 开始工作 — 返回上下文、工作区、分支 |
+| `claim_task` | 开始工作——返回上下文、工作区、分支 |
 | `complete_task` | 标记完成，自动完结计划 |
 | `delete_task` | 永久删除任务 |
 | `log_progress` | 记录执行会话日志 |
-
-### 规划
-
-| 工具 | 功能 |
-|------|------|
 | `create_plan` | 创建执行计划（方案、假设、风险） |
 | `get_plan` | 获取计划及版本历史和反馈 |
 | `update_plan` | 迭代：更新方案、状态或添加反馈 |
 
-### 知识库
+### 知识包（3 个工具）
 
 | 工具 | 功能 |
 |------|------|
 | `query_context` | 搜索决策、模式、经验 |
 | `add_context` | 写入知识库 |
 | `record_learning` | 捕获成果，可选提升为项目范围 |
-| `get_or_create_global_board` | 获取全局看板 |
 
-### 多智能体会话
+### 社交聆听包（7 个工具，免费）
+
+| 工具 | 功能 |
+|------|------|
+| `search_content` | 跨平台搜索帖子。支持 `useVision` 标志。 |
+| `get_content_comments` | 获取特定帖子的评论/回复 |
+| `get_trending_content` | 平台当前热门帖子 |
+| `get_user_content` | 特定用户的近期帖子 |
+| `extract_url` | 视觉提取——对任意 URL 截图，返回结构化数据 |
+| `get_platform_status` | 可用平台及其功能 |
+| `health_check` | 平台连接检查 |
+
+平台：reddit、twitter、tiktok、instagram、youtube、xiaohongshu、moltbook
+
+### 受众分析包（6 个工具，需要 CROWDLISTEN_API_KEY）
+
+| 工具 | 功能 |
+|------|------|
+| `analyze_content` | 帖子及评论的情感 + 主题分析 |
+| `cluster_opinions` | 按主题将评论分组为语义观点聚类 |
+| `enrich_content` | 意图检测、立场分析、互动评分 |
+| `deep_analyze` | 完整受众智能：细分、痛点、竞争信号 |
+| `extract_insights` | 分类洞察提取（痛点、功能需求、好评） |
+| `research_synthesis` | 单条查询生成跨平台研究报告 |
+
+### 会话包（3 个工具）
 
 | 工具 | 功能 |
 |------|------|
@@ -118,35 +169,69 @@ npx @crowdlisten/planner login
 | `list_sessions` | 列出任务的会话 |
 | `update_session` | 更新会话状态/焦点 |
 
-### 看板管理
+### 设置包（5 个工具）
 
 | 工具 | 功能 |
 |------|------|
+| `get_or_create_global_board` | 获取全局看板 |
 | `list_projects` | 列出可访问的项目 |
 | `list_boards` | 列出项目的看板 |
 | `create_board` | 创建带默认列的看板 |
 | `migrate_to_global_board` | 将所有任务迁移到全局看板 |
 
-完整参数详情：[docs/TOOLS.md](docs/TOOLS.md)
+## 平台配置
+
+大多数平台零配置即可工作：
+
+| 平台 | 需要什么 | 不配置会怎样 |
+|------|---------|-------------|
+| Reddit | 无 | 即刻可用 |
+| TikTok | `npx playwright install chromium` | 浏览器未找到错误 |
+| Instagram | `npx playwright install chromium` | 浏览器未找到错误 |
+| 小红书 | `npx playwright install chromium` | 浏览器未找到错误 |
+| Twitter/X | `.env` 中设置 `TWITTER_USERNAME` + `TWITTER_PASSWORD` | 跳过 |
+| YouTube | `.env` 中设置 `YOUTUBE_API_KEY` | 跳过 |
+| Moltbook | `.env` 中设置 `MOLTBOOK_API_KEY` | 跳过 |
+| 视觉模式 | `ANTHROPIC_API_KEY`、`GEMINI_API_KEY` 或 `OPENAI_API_KEY` 之一 | 视觉返回错误 |
+| 付费分析 | `CROWDLISTEN_API_KEY` | 免费工具正常使用 |
+
+## CLI 命令
+
+```bash
+npx @crowdlisten/planner login          # 登录 + 自动配置智能体
+npx @crowdlisten/planner setup          # 重新运行自动配置
+npx @crowdlisten/planner logout         # 清除凭据
+npx @crowdlisten/planner whoami         # 查看当前用户
+npx @crowdlisten/planner context        # 启动技能包仪表板（端口 3847）
+npx @crowdlisten/planner context <file> # 通过上下文管道处理文件
+npx @crowdlisten/planner setup-context  # 配置 LLM 提供者
+
+# 社交聆听 CLI
+npx crowdlisten search reddit "AI agents" --limit 20
+npx crowdlisten comments youtube dQw4w9WgXcQ --limit 100
+npx crowdlisten vision https://news.ycombinator.com --limit 10
+npx crowdlisten trending reddit --limit 10
+npx crowdlisten status
+npx crowdlisten health
+```
 
 ## 支持的智能体
 
-**登录时自动配置：** Claude Code、Cursor、Gemini CLI、Codex、OpenClaw
+**登录时自动配置：** Claude Code、Cursor、Gemini CLI、Codex、Amp、OpenClaw
 
 **也支持（手动配置）：** Copilot、Droid、Qwen Code、OpenCode
 
-## 命令
+## 隐私
 
-```bash
-npx @crowdlisten/planner login    # 登录 + 自动配置智能体
-npx @crowdlisten/planner setup    # 重新运行自动配置
-npx @crowdlisten/planner logout   # 清除凭据
-npx @crowdlisten/planner whoami   # 查看当前用户
-```
+- PII 在 LLM 调用前本地脱敏
+- 上下文存储在本地（`~/.crowdlisten/`）
+- 使用你自己的 API 密钥进行 LLM 提取
+- 未经明确操作不会同步数据
+- 全部 MIT 开源，可审查
 
 ## 智能体参考
 
-查看 [AGENTS.md](AGENTS.md) 获取机器可读的功能描述、MCP 配置和示例工作流。
+查看 [AGENTS.md](AGENTS.md) 获取机器可读的功能描述和示例工作流。
 
 ## 开发
 
@@ -156,6 +241,10 @@ cd crowdlisten_harness
 npm install && npm run build
 npm test    # 通过 Vitest 运行 210 个测试
 ```
+
+## 贡献
+
+最有价值的贡献：新平台适配器（Threads、Bluesky、Hacker News、Product Hunt、Mastodon）和提取修复。
 
 ## 许可证
 

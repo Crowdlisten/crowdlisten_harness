@@ -125,7 +125,7 @@ export default function App() {
               className="text-xl font-semibold"
               style={{ fontFamily: "'Playfair Display', Georgia, serif" }}
             >
-              CrowdListen Context
+              CrowdListen
             </h1>
           </div>
           {configStatus?.configured && (
@@ -208,7 +208,7 @@ export default function App() {
         className="text-center py-6 mt-12 text-xs"
         style={{ color: "var(--cl-fg-muted)" }}
       >
-        CrowdListen Context &middot; All processing happens locally &middot;{" "}
+        CrowdListen &middot; Progressive skill packs for AI agents &middot;{" "}
         <a
           href="https://crowdlisten.com"
           target="_blank"

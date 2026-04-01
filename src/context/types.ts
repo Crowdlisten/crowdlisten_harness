@@ -9,7 +9,7 @@ export interface RedactionResult {
 }
 
 export interface ContextBlock {
-  type: "style" | "insight" | "pattern" | "preference";
+  type: "style" | "insight" | "pattern" | "preference" | "decision";
   title: string;
   content: string;
   source?: string;

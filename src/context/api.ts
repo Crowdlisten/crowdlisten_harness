@@ -14,6 +14,7 @@ import {
   getHistory,
 } from "./store.js";
 import { matchSkills, discoverSkills, searchSkills, getSkillCategories } from "./matcher.js";
+import { loadUserState, activatePack, deactivatePack } from "./user-state.js";
 import type { ContextConfig, SkillTier, SkillCategory } from "./types.js";
 
 function readBody(req: http.IncomingMessage): Promise<string> {
@@ -160,6 +161,35 @@ export async function handleApiRequest(
     // GET /api/history — Get processing history
     if (pathname === "/api/history" && method === "GET") {
       return json(res, { history: getHistory() });
+    }
+
+    // GET /api/state — Get UserState (active packs, preferences)
+    if (pathname === "/api/state" && method === "GET") {
+      return json(res, loadUserState());
+    }
+
+    // POST /api/state/activate — Activate a skill pack
+    if (pathname === "/api/state/activate" && method === "POST") {
+      const body = JSON.parse(await readBody(req));
+      if (!body.pack_id) return error(res, "Missing 'pack_id'");
+      const state = activatePack(body.pack_id);
+      return json(res, { ok: true, activePacks: state.activePacks });
+    }
+
+    // POST /api/state/deactivate — Deactivate a skill pack
+    if (pathname === "/api/state/deactivate" && method === "POST") {
+      const body = JSON.parse(await readBody(req));
+      if (!body.pack_id) return error(res, "Missing 'pack_id'");
+      const state = deactivatePack(body.pack_id);
+      return json(res, { ok: true, activePacks: state.activePacks });
+    }
+
+    // GET /api/packs — List all available packs with metadata
+    if (pathname === "/api/packs" && method === "GET") {
+      // Import registry dynamically to avoid circular deps at module load
+      const { listPacks } = await import("../tools/registry.js");
+      const state = loadUserState();
+      return json(res, { packs: listPacks(state.activePacks) });
     }
 
     // 404 for unknown API routes

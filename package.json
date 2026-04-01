@@ -1,11 +1,12 @@
 {
   "name": "@crowdlisten/planner",
-  "version": "0.6.0",
-  "description": "Planning, delegation, and context extraction for AI agents — plan before you build, capture knowledge as you go, compound learnings across tasks",
+  "version": "1.0.0",
+  "description": "Unified MCP server for AI agents — planning, social listening, skill packs, and knowledge management with progressive disclosure",
   "type": "module",
   "bin": {
     "crowdlisten-planner": "dist/index.js",
-    "crowdlisten-serve": "dist/transport/http.js"
+    "crowdlisten-serve": "dist/transport/http.js",
+    "crowdlisten": "dist/insights/cli.js"
   },
   "scripts": {
     "build": "tsc",
@@ -22,13 +23,19 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
     "@supabase/supabase-js": "^2.49.4",
+    "@the-convocation/twitter-scraper": "^0.22.1",
+    "axios": "^1.13.1",
+    "commander": "^14.0.3",
+    "dotenv": "^17.3.1",
     "jszip": "^3.10.1",
+    "node-fetch": "^3.3.2",
     "pdf-parse": "^1.1.1"
   },
   "devDependencies": {
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "@types/node": "^22.0.0",
+    "playwright": "^1.58.2",
     "vitest": "^3.0.0",
     "@vitest/coverage-v8": "^3.0.0",
     "react": "^19.0.0",
@@ -56,8 +63,9 @@
     "crowdlisten",
     "knowledge-base",
     "context-extraction",
-    "pii-redaction",
-    "skill-matching"
+    "social-media",
+    "crowd-intelligence",
+    "skill-packs"
   ],
   "license": "MIT",
   "repository": {
