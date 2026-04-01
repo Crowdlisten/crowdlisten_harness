@@ -12,8 +12,11 @@ import * as path from "path";
 import * as os from "os";
 import { execSync } from "child_process";
 import { runPipeline } from "./context/pipeline.js";
-import { getBlocks } from "./context/store.js";
+import { getBlocks, addBlocks } from "./context/store.js";
 import { matchSkills, discoverSkills, searchSkills, getSkillCategories, getFullCatalog } from "./context/matcher.js";
+import { loadUserState, saveUserState, activatePack, deactivatePack } from "./context/user-state.js";
+import { listPacks, hasPack, getPack, getSkillMdContent, getPackTools } from "./tools/registry.js";
+import type { ContextBlock } from "./context/types.js";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -181,12 +184,18 @@ export async function autoInstallMcp(): Promise<string[]> {
       const servers = target[leafKey] as Record<string, unknown>;
 
       let changed = false;
-      if (!servers["crowdlisten/harness"]) {
-        servers["crowdlisten/harness"] = { ...MCP_ENTRY };
+      // Unified server replaces the old two-server setup
+      if (!servers["crowdlisten"]) {
+        servers["crowdlisten"] = { ...MCP_ENTRY };
         changed = true;
       }
-      if (!servers["crowdlisten/insights"]) {
-        servers["crowdlisten/insights"] = { command: "npx", args: ["-y", "crowdlisten"] };
+      // Clean up old entries if present
+      if (servers["crowdlisten/harness"]) {
+        delete servers["crowdlisten/harness"];
+        changed = true;
+      }
+      if (servers["crowdlisten/insights"]) {
+        delete servers["crowdlisten/insights"];
         changed = true;
       }
       if (!changed) continue;
@@ -646,6 +655,162 @@ export const TOOLS = [
         },
       },
       required: ["skill_id"],
+    },
+  },
+
+  // ─── Core Always-On Tools (Skill Pack Discovery + Memory) ────────────────
+  {
+    name: "list_skill_packs",
+    description:
+      "List all available skill packs with status (active/available). Skill packs group related tools — activate a pack to unlock its tools. Start here to see what capabilities are available.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        include_virtual: {
+          type: "boolean",
+          description: "Include SKILL.md workflow packs (default true)",
+        },
+      },
+    },
+  },
+  {
+    name: "activate_skill_pack",
+    description:
+      "Activate a skill pack to unlock its tools. After activation, the new tools appear in tools/list. For SKILL.md packs, returns the full workflow instructions. Call list_skill_packs first to see available packs.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        pack_id: {
+          type: "string",
+          description: "Pack ID to activate (e.g., 'planning', 'social-listening', 'competitive-analysis')",
+        },
+      },
+      required: ["pack_id"],
+    },
+  },
+  {
+    name: "remember",
+    description:
+      "Save context that persists across sessions — preferences, decisions, patterns, or any information the agent should recall later. Stored locally in ~/.crowdlisten/context.json.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        type: {
+          type: "string",
+          enum: ["preference", "decision", "pattern", "insight", "style"],
+          description: "Type of context block to save",
+        },
+        title: {
+          type: "string",
+          description: "Short title for this context block",
+        },
+        content: {
+          type: "string",
+          description: "The content to remember",
+        },
+      },
+      required: ["type", "title", "content"],
+    },
+  },
+  {
+    name: "recall",
+    description:
+      "Retrieve previously saved context blocks. Search by type or keyword to find relevant memories. Returns context saved via the remember tool.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        type: {
+          type: "string",
+          enum: ["preference", "decision", "pattern", "insight", "style"],
+          description: "Filter by context type",
+        },
+        search: {
+          type: "string",
+          description: "Search keyword to filter results",
+        },
+        limit: {
+          type: "number",
+          description: "Max results (default 20)",
+        },
+      },
+    },
+  },
+  // ── Spec Delivery ─────────────────────────────────────────────────
+  {
+    name: "get_specs",
+    description:
+      "[Specs] List actionable specs generated from crowd feedback analysis. " +
+      "These are agent-consumable implementation specs with evidence, acceptance criteria, and priority. " +
+      "Filter by status (pending/claimed/in_progress/completed), type, priority, or minimum confidence.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        project_id: {
+          type: "string",
+          description: "Filter by project UUID",
+        },
+        status: {
+          type: "string",
+          enum: ["pending", "claimed", "in_progress", "completed", "rejected"],
+          description: "Filter by lifecycle status (default: pending)",
+        },
+        spec_type: {
+          type: "string",
+          enum: ["feature", "bug_fix", "improvement", "investigation"],
+          description: "Filter by spec type",
+        },
+        min_confidence: {
+          type: "number",
+          description: "Minimum confidence threshold (0.0-1.0)",
+        },
+        priority: {
+          type: "string",
+          enum: ["critical", "high", "medium", "low"],
+          description: "Filter by priority level",
+        },
+        limit: {
+          type: "number",
+          description: "Max results (default 20)",
+        },
+      },
+    },
+  },
+  {
+    name: "get_spec_detail",
+    description:
+      "[Specs] Get full spec details including evidence citations, acceptance criteria, " +
+      "and implementation context. Read this before starting implementation.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        spec_id: {
+          type: "string",
+          description: "Spec UUID to retrieve",
+        },
+      },
+      required: ["spec_id"],
+    },
+  },
+  {
+    name: "start_spec",
+    description:
+      "[Specs] Claim an actionable spec and begin implementation. " +
+      "Creates a kanban task from the spec, claims it (moves to In Progress), " +
+      "and returns workspace context for the coding agent. " +
+      "Composes create_task → claim_task internally.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        spec_id: {
+          type: "string",
+          description: "Spec UUID to start working on",
+        },
+        executor: {
+          type: "string",
+          description: "Coding agent type (auto-detected if omitted)",
+        },
+      },
+      required: ["spec_id"],
     },
   },
 ];
@@ -1731,6 +1896,298 @@ export async function handleTool(
         instructions: skill.installMethod === "npx"
           ? `Run: npx ${skill.installTarget}`
           : `Clone: git clone ${skill.installTarget}`,
+      });
+    }
+
+    // ── Core Always-On Tools ─────────────────────────────────────
+    case "list_skill_packs": {
+      const includeVirtual = args.include_virtual !== false;
+      const state = loadUserState();
+      let packList = listPacks(state.activePacks);
+      if (!includeVirtual) {
+        packList = packList.filter(p => !p.isVirtual);
+      }
+      return json({
+        packs: packList,
+        activePacks: state.activePacks.length,
+        totalPacks: packList.length,
+        hint: "Call activate_skill_pack with a pack_id to unlock its tools.",
+      });
+    }
+
+    case "activate_skill_pack": {
+      const packId = args.pack_id as string;
+      if (!packId) return json({ error: "Missing 'pack_id' parameter" });
+      if (!hasPack(packId)) return json({ error: `Pack '${packId}' not found. Use list_skill_packs to see available packs.` });
+
+      const pack = getPack(packId)!;
+
+      // Virtual SKILL.md packs — return content instead of activating tools
+      if (pack.isVirtual) {
+        const content = getSkillMdContent(packId);
+        if (!content) return json({ error: `SKILL.md not found for pack '${packId}'` });
+        return json({
+          activated: packId,
+          type: "skill_workflow",
+          name: pack.name,
+          description: pack.description,
+          instructions: content,
+        });
+      }
+
+      // Regular tool pack — activate and signal tools/list_changed
+      const state = activatePack(packId);
+      const tools = getPackTools(packId).map(t => t.name);
+
+      // Note: server.sendToolListChanged() is called by the index.ts dispatcher
+      return json({
+        activated: packId,
+        type: "tool_pack",
+        name: pack.name,
+        tools,
+        toolCount: tools.length,
+        totalActivePacks: state.activePacks.length,
+        _needsListChanged: true,
+      });
+    }
+
+    case "remember": {
+      const type = args.type as string;
+      const title = args.title as string;
+      const content = args.content as string;
+
+      if (!type || !title || !content) {
+        return json({ error: "Missing required parameters: type, title, content" });
+      }
+
+      const block: ContextBlock = {
+        type: type as ContextBlock["type"],
+        title,
+        content,
+        source: "remember",
+      };
+
+      const allBlocks = addBlocks([block], "remember");
+      return json({
+        saved: true,
+        title,
+        type,
+        totalBlocks: allBlocks.length,
+      });
+    }
+
+    case "recall": {
+      const type = args.type as string | undefined;
+      const search = args.search as string | undefined;
+      const limit = (args.limit as number) || 20;
+
+      let blocks = getBlocks();
+
+      if (type) {
+        blocks = blocks.filter(b => b.type === type);
+      }
+
+      if (search) {
+        const lower = search.toLowerCase();
+        blocks = blocks.filter(
+          b =>
+            b.title.toLowerCase().includes(lower) ||
+            b.content.toLowerCase().includes(lower)
+        );
+      }
+
+      blocks = blocks.slice(-limit);
+
+      return json({
+        blocks,
+        count: blocks.length,
+        filters: { type: type || "all", search: search || null },
+      });
+    }
+
+    // ── Spec Delivery ────────────────────────────────────────────────
+    case "get_specs": {
+      const statusFilter = (args.status as string) || "pending";
+      const limit = (args.limit as number) || 20;
+
+      let query = sb
+        .from("actionable_specs")
+        .select("id, spec_type, title, objective, priority, confidence, status, project_id, created_at")
+        .eq("user_id", userId);
+
+      if (args.project_id) query = query.eq("project_id", args.project_id as string);
+      if (statusFilter) query = query.eq("status", statusFilter);
+      if (args.spec_type) query = query.eq("spec_type", args.spec_type as string);
+      if (args.min_confidence != null) query = query.gte("confidence", args.min_confidence as number);
+      if (args.priority) query = query.eq("priority", args.priority as string);
+
+      const { data, error } = await query
+        .order("created_at", { ascending: false })
+        .limit(limit);
+
+      if (error) throw new Error(error.message);
+      return json({ specs: data || [], count: (data || []).length, filters: { status: statusFilter } });
+    }
+
+    case "get_spec_detail": {
+      const specId = args.spec_id as string;
+
+      const { data, error } = await sb
+        .from("actionable_specs")
+        .select("*")
+        .eq("id", specId)
+        .eq("user_id", userId)
+        .single();
+
+      if (error || !data) throw new Error(error?.message || "Spec not found or access denied");
+
+      // Format for agent consumption
+      const spec = data;
+      const markdown = [
+        `# ${spec.title}`,
+        `**Type:** ${spec.spec_type} | **Priority:** ${spec.priority} | **Confidence:** ${(spec.confidence * 100).toFixed(0)}%`,
+        "",
+        `## Objective`,
+        spec.objective,
+        "",
+      ];
+
+      if (spec.description) {
+        markdown.push("## Description", spec.description, "");
+      }
+
+      const evidence = spec.evidence as Array<{ source: string; excerpt: string; confidence: number }>;
+      if (evidence && evidence.length > 0) {
+        markdown.push("## Evidence");
+        for (const e of evidence) {
+          markdown.push(`- [${e.source}] "${e.excerpt}" (confidence: ${((e.confidence || 0) * 100).toFixed(0)}%)`);
+        }
+        markdown.push("");
+      }
+
+      const criteria = spec.acceptance_criteria as string[];
+      if (criteria && criteria.length > 0) {
+        markdown.push("## Acceptance Criteria");
+        for (const c of criteria) {
+          markdown.push(`- [ ] ${c}`);
+        }
+        markdown.push("");
+      }
+
+      return json({
+        spec: data,
+        formatted: markdown.join("\n"),
+      });
+    }
+
+    case "start_spec": {
+      const specId = args.spec_id as string;
+      const executor = (args.executor as string) || detectExecutor();
+
+      // 1. Fetch the spec
+      const { data: spec, error: specErr } = await sb
+        .from("actionable_specs")
+        .select("*")
+        .eq("id", specId)
+        .eq("user_id", userId)
+        .single();
+
+      if (specErr || !spec) throw new Error(specErr?.message || "Spec not found or access denied");
+
+      if (spec.status !== "pending") {
+        return json({ error: `Spec is already ${spec.status}. Only pending specs can be started.` });
+      }
+
+      // 2. Create a kanban task from the spec
+      const globalBoard = await getOrCreateGlobalBoard(sb, userId);
+      const todoCol = await getColumnByStatus(sb, globalBoard.id, "todo");
+      if (!todoCol) throw new Error("Could not find 'To Do' column");
+
+      const { data: lastCard } = await sb
+        .from("kanban_cards")
+        .select("position")
+        .eq("column_id", todoCol)
+        .order("position", { ascending: false })
+        .limit(1)
+        .single();
+
+      // Build task description from spec
+      const criteria = spec.acceptance_criteria as string[];
+      const evidence = spec.evidence as Array<{ source: string; excerpt: string }>;
+      const taskDesc = [
+        `**Objective:** ${spec.objective}`,
+        spec.description ? `\n${spec.description}` : "",
+        criteria?.length ? `\n**Acceptance Criteria:**\n${criteria.map((c: string) => `- [ ] ${c}`).join("\n")}` : "",
+        evidence?.length ? `\n**Evidence:**\n${evidence.map((e: { source: string; excerpt: string }) => `- [${e.source}] "${e.excerpt}"`).join("\n")}` : "",
+        `\n_Generated from spec ${specId} (${spec.spec_type}, ${spec.priority} priority, ${(spec.confidence * 100).toFixed(0)}% confidence)_`,
+      ].filter(Boolean).join("\n");
+
+      const labels: unknown[] = [];
+      if (spec.project_id) {
+        labels.push({ name: `project:${spec.project_id}`, color: "#6366f1" });
+      }
+      labels.push({ name: `spec:${spec.spec_type}`, color: "#10b981" });
+      labels.push({ name: `priority:${spec.priority}`, color: spec.priority === "critical" ? "#ef4444" : spec.priority === "high" ? "#f59e0b" : "#6b7280" });
+
+      const { data: card, error: cardErr } = await sb
+        .from("kanban_cards")
+        .insert({
+          board_id: globalBoard.id,
+          column_id: todoCol,
+          user_id: userId,
+          title: spec.title,
+          description: taskDesc,
+          priority: spec.priority,
+          labels,
+          status: "todo",
+          position: (lastCard?.position || 0) + 1,
+        })
+        .select("id")
+        .single();
+
+      if (cardErr || !card) throw new Error(cardErr?.message || "Failed to create task from spec");
+
+      // 3. Claim the task (move to In Progress, create workspace + session)
+      const inProgressCol = await getColumnByStatus(sb, globalBoard.id, "inprogress");
+      if (inProgressCol) {
+        await sb.from("kanban_cards")
+          .update({ status: "inprogress", column_id: inProgressCol })
+          .eq("id", card.id);
+      }
+
+      const branch = `spec/${slugify(spec.title)}-${card.id.slice(0, 8)}`;
+      const { data: ws } = await sb
+        .from("kanban_workspaces")
+        .insert({ card_id: card.id, user_id: userId, branch })
+        .select("id")
+        .single();
+
+      const { data: sess } = await sb
+        .from("kanban_sessions")
+        .insert({ workspace_id: ws!.id, user_id: userId, executor })
+        .select("id")
+        .single();
+
+      // 4. Update spec status to claimed
+      await sb.from("actionable_specs")
+        .update({ status: "claimed" })
+        .eq("id", specId);
+
+      return json({
+        spec_id: specId,
+        task_id: card.id,
+        workspace_id: ws!.id,
+        session_id: sess?.id,
+        branch,
+        executor,
+        status: "started",
+        spec: {
+          title: spec.title,
+          spec_type: spec.spec_type,
+          priority: spec.priority,
+          objective: spec.objective,
+          acceptance_criteria: spec.acceptance_criteria,
+        },
       });
     }
 
