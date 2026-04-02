@@ -2,7 +2,7 @@
 
 > 一个统一的 AI 智能体 MCP 服务器。规划工作、搜索社交平台、积累知识——通过渐进式技能披露，智能体只加载当前需要的工具。
 
-[English](README.md) | [中文文档](README-CN.md)
+[English](README.md) | [中文文档](README-CN.md) | [한국어](README-KO.md) | [Español](README-ES.md)
 
 ## 问题所在
 

@@ -4,7 +4,7 @@
 
 ![CrowdListen — Give your agent evidence, not guesses](docs/images/hero.png)
 
-[English](README.md) | [中文文档](README-CN.md)
+[English](README.md) | [中文文档](README-CN.md) | [한국어](README-KO.md) | [Español](README-ES.md)
 
 ## The Problem
 
@@ -79,22 +79,7 @@ Or self-host: `npx @crowdlisten/planner serve` (starts on port 3848).
 
 ### Your Agent Discovers Tools Progressively
 
-On startup, your agent sees **5 core tools** — nothing else. It activates skill packs on demand, and only loads the tools it needs:
-
-```mermaid
-graph LR
-    A["🔧 5 core tools"] -->|activate| B["📱 social-listening\n7 tools"]
-    A -->|activate| C["📊 audience-analysis\n6 tools"]
-    A -->|activate| D["📋 planning\n11 tools"]
-    A -->|activate| E["📦 spec-delivery\n3 tools"]
-    style A fill:#e0f2fe,stroke:#0284c7
-    style B fill:#f0fdf4,stroke:#16a34a
-    style C fill:#fef3c7,stroke:#d97706
-    style D fill:#f0fdf4,stroke:#16a34a
-    style E fill:#f0fdf4,stroke:#16a34a
-```
-
-No restart needed — packs activate via `tools/list_changed` and new tools appear instantly.
+On startup, your agent sees **5 core tools** (`save`, `recall`, `list_skill_packs`, `activate_skill_pack`, `set_preferences`) — nothing else. It activates skill packs on demand, and only loads the tools it needs. No restart required — packs activate via `tools/list_changed` and new tools appear instantly.
 
 ## What You Can Do
 
@@ -134,22 +119,10 @@ Vision mode takes a screenshot of any URL, sends it to an LLM (Claude, Gemini, o
 
 ![CrowdListen Pipeline — Raw Crowd Signals to Agent Delivery](docs/images/pipeline.jpg)
 
-```mermaid
-graph LR
-    A["🌐 Raw Crowd Signals\nReddit, TikTok,\nYouTube, Twitter"] --> B["⚙️ Analysis Engine\nclustering, sentiment,\nsegmentation"]
-    B --> C["💡 Structured Insights\npain points, feature\nrequests, signals"]
-    C --> D["📄 Spec Generation\nactionable specs +\nconfidence scores"]
-    D --> E["🤖 Agent Delivery\nvia MCP to any\ncoding agent"]
-    style A fill:#fee2e2,stroke:#dc2626
-    style B fill:#e0f2fe,stroke:#0284c7
-    style C fill:#f0fdf4,stroke:#16a34a
-    style D fill:#fef3c7,stroke:#d97706
-    style E fill:#ede9fe,stroke:#7c3aed
-```
-
 Each step feeds the next. By the time a coding agent calls `get_specs`, the spec already carries evidence citations from real user feedback, a confidence score, and acceptance criteria derived from the insights.
 
-## Skill Packs
+<details>
+<summary><strong>Skill Packs</strong></summary>
 
 Your agent starts with 5 core tools and activates packs on demand:
 
@@ -170,8 +143,10 @@ Your agent starts with 5 core tools and activates packs on demand:
 Plus 8 **workflow packs** (competitive-analysis, content-strategy, market-research-reports, ux-researcher, and more) that deliver expert methodology instructions when activated.
 
 Full tool reference with parameters: **[docs/TOOLS.md](docs/TOOLS.md)**
+</details>
 
-## Platforms
+<details>
+<summary><strong>Platforms</strong></summary>
 
 **Works immediately** — Reddit
 
@@ -185,6 +160,7 @@ Full tool reference with parameters: **[docs/TOOLS.md](docs/TOOLS.md)**
 **Vision mode** — needs any one of: `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, or `OPENAI_API_KEY`
 
 **Paid analysis tools** — `CROWDLISTEN_API_KEY` (free tools still work without it)
+</details>
 
 ## Privacy
 
