@@ -18,7 +18,7 @@ import * as http from "http";
 import * as crypto from "crypto";
 import { createClient } from "@supabase/supabase-js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { createMcpServer, SERVER_VERSION } from "../server-factory.js";
+import { createMcpServer, createAnonymousMcpServer, SERVER_VERSION } from "../server-factory.js";
 import { generateOpenApiSpec } from "../openapi.js";
 import { TOOLS } from "../tools.js";
 
@@ -88,6 +88,17 @@ function setCorsHeaders(res: http.ServerResponse): void {
   res.setHeader("Access-Control-Max-Age", "86400");
 }
 
+// ─── Optional Auth (for ChatGPT anonymous tool discovery) ────────────────────
+
+async function tryAuthenticateRequest(
+  req: http.IncomingMessage
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Promise<{ supabase: any; userId: string } | null> {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
+  return authenticateRequest(req);
+}
+
 // ─── HTTP Server ───────────────────────────────────────────────────────────
 
 export async function startHttpTransport(port = 3848): Promise<void> {
@@ -133,8 +144,10 @@ export async function startHttpTransport(port = 3848): Promise<void> {
     // ── MCP Endpoints ────────────────────────────────────────
     if (url.pathname === "/mcp") {
       try {
-        const { supabase, userId } = await authenticateRequest(req);
-        const server = createMcpServer({ supabase, userId });
+        const auth = await tryAuthenticateRequest(req);
+        const server = auth
+          ? createMcpServer({ supabase: auth.supabase, userId: auth.userId })
+          : createAnonymousMcpServer();
 
         const transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: undefined, // Stateless mode

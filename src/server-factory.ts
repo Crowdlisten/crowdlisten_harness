@@ -62,4 +62,34 @@ export function createMcpServer(opts: McpServerOptions): Server {
   return server;
 }
 
+/**
+ * Creates an anonymous MCP Server for unauthenticated requests.
+ * Lists tools normally (ChatGPT needs this for discovery) but
+ * rejects tool calls with an auth-required message.
+ */
+export function createAnonymousMcpServer(): Server {
+  const server = new Server(
+    { name: SERVER_NAME, version: SERVER_VERSION },
+    { capabilities: { tools: {} } }
+  );
+
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools: TOOLS,
+  }));
+
+  server.setRequestHandler(CallToolRequestSchema, async () => ({
+    content: [
+      {
+        type: "text" as const,
+        text: JSON.stringify({
+          error: "Authentication required. Get an API key at https://crowdlisten.com/settings",
+        }),
+      },
+    ],
+    isError: true,
+  }));
+
+  return server;
+}
+
 export { SERVER_NAME, SERVER_VERSION };
