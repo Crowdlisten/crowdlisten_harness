@@ -63,7 +63,7 @@ export function createSb() {
     for (const m of [
       "eq", "neq", "in", "order", "limit", "single", "maybeSingle",
       "is", "gt", "lt", "gte", "lte", "like", "ilike", "contains",
-      "containedBy", "range", "filter", "match", "not", "or", "textSearch",
+      "containedBy", "overlaps", "range", "filter", "match", "not", "or", "textSearch",
     ]) {
       chain[m] = vi.fn((...args: unknown[]) => {
         log(m, ...args);
