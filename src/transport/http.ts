@@ -201,3 +201,7 @@ CrowdListen Harness HTTP server running
     httpServer.close(() => process.exit(0));
   });
 }
+
+// Auto-start when run directly (e.g. node dist/transport/http.js)
+const port = parseInt(process.env.PORT || "3848", 10);
+startHttpTransport(port);
