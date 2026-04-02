@@ -38,7 +38,7 @@ recall({ search: "what do developers think about our product vs competitors?" })
 명령어 하나면 됩니다. 브라우저가 열리고, 로그인하면 에이전트가 자동으로 설정됩니다:
 
 ```bash
-npx @crowdlisten/planner login
+npx @crowdlisten/harness login
 ```
 
 **Claude Code, Cursor, Gemini CLI, Codex, Amp, OpenClaw**에 MCP가 자동 설정됩니다. 환경 변수, JSON 편집, API 키 관리가 필요 없습니다. 로그인 후 에이전트를 재시작하세요.
@@ -51,7 +51,7 @@ npx @crowdlisten/planner login
   "mcpServers": {
     "crowdlisten": {
       "command": "npx",
-      "args": ["-y", "@crowdlisten/planner"]
+      "args": ["-y", "@crowdlisten/harness"]
     }
   }
 }
@@ -74,7 +74,7 @@ npx @crowdlisten/planner login
 }
 ```
 
-또는 셀프 호스팅: `npx @crowdlisten/planner serve` (포트 3848에서 시작).
+또는 셀프 호스팅: `npx @crowdlisten/harness serve` (포트 3848에서 시작).
 </details>
 
 ### 에이전트가 도구를 점진적으로 발견합니다
@@ -201,15 +201,15 @@ graph LR
 <summary><strong>CLI 명령어</strong></summary>
 
 ```bash
-npx @crowdlisten/planner login          # Sign in + auto-configure agents
-npx @crowdlisten/planner setup          # Re-run auto-configure
-npx @crowdlisten/planner logout         # Clear credentials
-npx @crowdlisten/planner whoami         # Check current user
-npx @crowdlisten/planner serve          # Start HTTP server on :3848
-npx @crowdlisten/planner openapi        # Print OpenAPI 3.0 spec to stdout
-npx @crowdlisten/planner context        # Launch skill pack dashboard
-npx @crowdlisten/planner context <file> # Process file through context pipeline
-npx @crowdlisten/planner setup-context  # Configure LLM provider for extraction
+npx @crowdlisten/harness login          # Sign in + auto-configure agents
+npx @crowdlisten/harness setup          # Re-run auto-configure
+npx @crowdlisten/harness logout         # Clear credentials
+npx @crowdlisten/harness whoami         # Check current user
+npx @crowdlisten/harness serve          # Start HTTP server on :3848
+npx @crowdlisten/harness openapi        # Print OpenAPI 3.0 spec to stdout
+npx @crowdlisten/harness context        # Launch skill pack dashboard
+npx @crowdlisten/harness context <file> # Process file through context pipeline
+npx @crowdlisten/harness setup-context  # Configure LLM provider for extraction
 
 # Social listening CLI
 npx crowdlisten search reddit "AI agents" --limit 20
@@ -226,8 +226,8 @@ npx crowdlisten health
 
 | 전송 방식 | 사용 사례 | 명령어 |
 |-----------|----------|---------|
-| **stdio** (기본값) | 로컬 에이전트 통합 | `npx @crowdlisten/planner` |
-| **Streamable HTTP** | 원격/클라우드 에이전트 접근 | `npx @crowdlisten/planner serve` |
+| **stdio** (기본값) | 로컬 에이전트 통합 | `npx @crowdlisten/harness` |
+| **Streamable HTTP** | 원격/클라우드 에이전트 접근 | `npx @crowdlisten/harness serve` |
 | **OpenAPI/REST** | 모든 HTTP 클라이언트 | `curl localhost:3848/openapi.json` |
 
 HTTP 전송은 포트 3848에서 `Authorization: Bearer <token>`(Supabase JWT 또는 API 키) 인증으로 실행됩니다. 헬스 체크는 `GET /health`, OpenAPI 스펙은 `GET /openapi.json`에서 확인할 수 있습니다.

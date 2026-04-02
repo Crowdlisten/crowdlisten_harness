@@ -1,6 +1,6 @@
 /**
  * LLM provider abstraction: OpenAI, Anthropic, Ollama.
- * Uses the user's own API key — configured via `npx @crowdlisten/planner setup`.
+ * Uses the user's own API key — configured via `npx @crowdlisten/harness setup`.
  */
 
 import type { LLMProvider, LLMMessage, LLMOpts, ContextConfig } from "./types.js";

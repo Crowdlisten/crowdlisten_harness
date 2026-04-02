@@ -115,7 +115,7 @@ export function callbackHtml(success: boolean, error?: string): string {
 
 export const MCP_ENTRY = {
   command: "npx",
-  args: ["-y", "@crowdlisten/planner"],
+  args: ["-y", "@crowdlisten/harness"],
 };
 
 export interface AgentConfig {

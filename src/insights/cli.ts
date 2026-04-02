@@ -231,7 +231,7 @@ program
 // If called with no args via piped stdin, print help
 if (process.argv.length <= 2 && !process.stdin.isTTY) {
   console.error('CrowdListen insights CLI. Use the unified MCP server instead:');
-  console.error('  npx @crowdlisten/planner');
+  console.error('  npx @crowdlisten/harness');
   process.exit(0);
 } else {
   program.parse();

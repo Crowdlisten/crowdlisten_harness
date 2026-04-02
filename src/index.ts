@@ -9,7 +9,7 @@
  * Pattern: Start with ~4 discovery tools → activate skill packs on demand
  *          → fire tools/list_changed so the agent sees new tools.
  *
- * First time:  npx @crowdlisten/planner login
+ * First time:  npx @crowdlisten/harness login
  * Then add to your agent config and go.
  */
 
@@ -192,7 +192,7 @@ async function getAuthedClient(): Promise<{
 
   if (!auth) {
     console.error(
-      "Not logged in. Run: npx @crowdlisten/planner login"
+      "Not logged in. Run: npx @crowdlisten/harness login"
     );
     process.exit(1);
   }
@@ -210,7 +210,7 @@ async function getAuthedClient(): Promise<{
   });
 
   if (error || !data.session) {
-    console.error("Session expired. Please login again: npx @crowdlisten/planner login");
+    console.error("Session expired. Please login again: npx @crowdlisten/harness login");
     clearAuth();
     process.exit(1);
   }
@@ -243,7 +243,7 @@ if (command === "login") {
   if (auth) {
     console.error(`Logged in as: ${auth.email} (${auth.user_id})`);
   } else {
-    console.error("Not logged in. Run: npx @crowdlisten/planner login");
+    console.error("Not logged in. Run: npx @crowdlisten/harness login");
   }
   process.exit(0);
 } else if (command === "setup") {
@@ -293,7 +293,7 @@ COMMANDS:
 
 QUICK START:
 
-  npx @crowdlisten/planner login
+  npx @crowdlisten/harness login
 
   That's it. Login auto-detects and configures Claude Code,
   Cursor, Gemini CLI, Codex, and Amp. Just restart your agent.
@@ -305,7 +305,7 @@ QUICK START:
 
 REMOTE ACCESS:
 
-  npx @crowdlisten/planner serve           # Start HTTP server on :3848
+  npx @crowdlisten/harness serve           # Start HTTP server on :3848
   curl localhost:3848/health               # Health check
   curl localhost:3848/openapi.json         # OpenAPI spec
 `);

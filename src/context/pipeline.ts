@@ -40,7 +40,7 @@ export async function runPipeline(opts: PipelineOpts): Promise<PipelineResult> {
   const config = opts.config || loadConfig();
   if (!config) {
     throw new Error(
-      "No LLM provider configured. Run: npx @crowdlisten/planner setup"
+      "No LLM provider configured. Run: npx @crowdlisten/harness setup"
     );
   }
 

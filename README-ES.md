@@ -38,7 +38,7 @@ Cualquier agente — Claude Code, Cursor, Gemini CLI, Codex — puede usar `reca
 Un comando. Tu navegador se abre, inicias sesion y tus agentes se configuran automaticamente:
 
 ```bash
-npx @crowdlisten/planner login
+npx @crowdlisten/harness login
 ```
 
 Esto auto-configura MCP para **Claude Code, Cursor, Gemini CLI, Codex, Amp y OpenClaw**. Sin variables de entorno, sin editar JSON, sin API keys que gestionar. Reinicia tu agente despues de iniciar sesion.
@@ -51,7 +51,7 @@ Esto auto-configura MCP para **Claude Code, Cursor, Gemini CLI, Codex, Amp y Ope
   "mcpServers": {
     "crowdlisten": {
       "command": "npx",
-      "args": ["-y", "@crowdlisten/planner"]
+      "args": ["-y", "@crowdlisten/harness"]
     }
   }
 }
@@ -74,7 +74,7 @@ Esto auto-configura MCP para **Claude Code, Cursor, Gemini CLI, Codex, Amp y Ope
 }
 ```
 
-O auto-alojado: `npx @crowdlisten/planner serve` (inicia en el puerto 3848).
+O auto-alojado: `npx @crowdlisten/harness serve` (inicia en el puerto 3848).
 </details>
 
 ### Tu Agente Descubre Herramientas Progresivamente
@@ -201,15 +201,15 @@ Referencia completa de herramientas con parametros: **[docs/TOOLS.md](docs/TOOLS
 <summary><strong>Comandos CLI</strong></summary>
 
 ```bash
-npx @crowdlisten/planner login          # Sign in + auto-configure agents
-npx @crowdlisten/planner setup          # Re-run auto-configure
-npx @crowdlisten/planner logout         # Clear credentials
-npx @crowdlisten/planner whoami         # Check current user
-npx @crowdlisten/planner serve          # Start HTTP server on :3848
-npx @crowdlisten/planner openapi        # Print OpenAPI 3.0 spec to stdout
-npx @crowdlisten/planner context        # Launch skill pack dashboard
-npx @crowdlisten/planner context <file> # Process file through context pipeline
-npx @crowdlisten/planner setup-context  # Configure LLM provider for extraction
+npx @crowdlisten/harness login          # Sign in + auto-configure agents
+npx @crowdlisten/harness setup          # Re-run auto-configure
+npx @crowdlisten/harness logout         # Clear credentials
+npx @crowdlisten/harness whoami         # Check current user
+npx @crowdlisten/harness serve          # Start HTTP server on :3848
+npx @crowdlisten/harness openapi        # Print OpenAPI 3.0 spec to stdout
+npx @crowdlisten/harness context        # Launch skill pack dashboard
+npx @crowdlisten/harness context <file> # Process file through context pipeline
+npx @crowdlisten/harness setup-context  # Configure LLM provider for extraction
 
 # Social listening CLI
 npx crowdlisten search reddit "AI agents" --limit 20
@@ -226,8 +226,8 @@ npx crowdlisten health
 
 | Transporte | Caso de uso | Comando |
 |------------|-------------|---------|
-| **stdio** (predeterminado) | Integracion local con agente | `npx @crowdlisten/planner` |
-| **Streamable HTTP** | Acceso remoto/nube para agentes | `npx @crowdlisten/planner serve` |
+| **stdio** (predeterminado) | Integracion local con agente | `npx @crowdlisten/harness` |
+| **Streamable HTTP** | Acceso remoto/nube para agentes | `npx @crowdlisten/harness serve` |
 | **OpenAPI/REST** | Cualquier cliente HTTP | `curl localhost:3848/openapi.json` |
 
 El transporte HTTP corre en el puerto 3848 con autenticacion via `Authorization: Bearer <token>` (JWT de Supabase o API key). Health check en `GET /health`, spec OpenAPI en `GET /openapi.json`.

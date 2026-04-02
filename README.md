@@ -24,7 +24,7 @@ Any agent — Claude Code, Cursor, Gemini CLI, Codex — can recall this later. 
 One command. Your browser opens, you sign in, and your agents are configured automatically:
 
 ```bash
-npx @crowdlisten/planner login
+npx @crowdlisten/harness login
 ```
 
 Auto-configures MCP for **Claude Code, Cursor, Gemini CLI, Codex, Amp, and OpenClaw**. No env vars, no JSON editing, no API keys to manage. Restart your agent after login.
@@ -38,7 +38,7 @@ Add to your agent's MCP config:
   "mcpServers": {
     "crowdlisten": {
       "command": "npx",
-      "args": ["-y", "@crowdlisten/planner"]
+      "args": ["-y", "@crowdlisten/harness"]
     }
   }
 }
@@ -115,9 +115,9 @@ Full tool reference: **[docs/TOOLS.md](docs/TOOLS.md)**
 ## CLI
 
 ```bash
-npx @crowdlisten/planner login          # Sign in + auto-configure agents
-npx @crowdlisten/planner setup          # Re-run auto-configure
-npx @crowdlisten/planner serve          # Start HTTP server on :3848
+npx @crowdlisten/harness login          # Sign in + auto-configure agents
+npx @crowdlisten/harness setup          # Re-run auto-configure
+npx @crowdlisten/harness serve          # Start HTTP server on :3848
 
 npx crowdlisten search reddit "AI agents" --limit 20
 npx crowdlisten vision https://news.ycombinator.com --limit 10

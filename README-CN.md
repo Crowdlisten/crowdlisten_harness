@@ -21,7 +21,7 @@ CrowdListen 用一个 MCP 服务器解决三个问题：
 一条命令。浏览器打开，登录，智能体自动配置：
 
 ```bash
-npx @crowdlisten/planner login
+npx @crowdlisten/harness login
 ```
 
 自动为 Claude Code、Cursor、Gemini CLI、Codex、Amp 和 OpenClaw 配置 MCP。无需环境变量，无需编辑 JSON，无需管理 API 密钥。
@@ -37,7 +37,7 @@ npx @crowdlisten/planner login
   "mcpServers": {
     "crowdlisten": {
       "command": "npx",
-      "args": ["-y", "@crowdlisten/planner"]
+      "args": ["-y", "@crowdlisten/harness"]
     }
   }
 }
@@ -198,13 +198,13 @@ npx crowdlisten vision https://news.ycombinator.com
 ## CLI 命令
 
 ```bash
-npx @crowdlisten/planner login          # 登录 + 自动配置智能体
-npx @crowdlisten/planner setup          # 重新运行自动配置
-npx @crowdlisten/planner logout         # 清除凭据
-npx @crowdlisten/planner whoami         # 查看当前用户
-npx @crowdlisten/planner context        # 启动技能包仪表板（端口 3847）
-npx @crowdlisten/planner context <file> # 通过上下文管道处理文件
-npx @crowdlisten/planner setup-context  # 配置 LLM 提供者
+npx @crowdlisten/harness login          # 登录 + 自动配置智能体
+npx @crowdlisten/harness setup          # 重新运行自动配置
+npx @crowdlisten/harness logout         # 清除凭据
+npx @crowdlisten/harness whoami         # 查看当前用户
+npx @crowdlisten/harness context        # 启动技能包仪表板（端口 3847）
+npx @crowdlisten/harness context <file> # 通过上下文管道处理文件
+npx @crowdlisten/harness setup-context  # 配置 LLM 提供者
 
 # 社交聆听 CLI
 npx crowdlisten search reddit "AI agents" --limit 20

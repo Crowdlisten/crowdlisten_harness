@@ -1,9 +1,9 @@
 /**
  * CLI subcommands for context extraction.
  *
- * npx @crowdlisten/planner context          # Launch web UI
- * npx @crowdlisten/planner context <file>   # CLI-only processing
- * npx @crowdlisten/planner setup            # Configure LLM provider (handled in index.ts)
+ * npx @crowdlisten/harness context          # Launch web UI
+ * npx @crowdlisten/harness context <file>   # CLI-only processing
+ * npx @crowdlisten/harness setup            # Configure LLM provider (handled in index.ts)
  */
 
 import { runPipeline } from "./pipeline.js";
@@ -70,7 +70,7 @@ export async function runContextCLI(filePath: string): Promise<void> {
   const config = loadConfig();
   if (!config) {
     console.error(
-      "No LLM provider configured. Run: npx @crowdlisten/planner setup"
+      "No LLM provider configured. Run: npx @crowdlisten/harness setup"
     );
     process.exit(1);
   }
@@ -131,7 +131,7 @@ export async function runContextWeb(): Promise<void> {
   const config = loadConfig();
   if (!config) {
     console.error(
-      "⚠️  No LLM provider configured. You can configure it in the web UI or run: npx @crowdlisten/planner setup\n"
+      "⚠️  No LLM provider configured. You can configure it in the web UI or run: npx @crowdlisten/harness setup\n"
     );
   }
 

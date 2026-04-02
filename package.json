@@ -1,10 +1,10 @@
 {
-  "name": "@crowdlisten/planner",
+  "name": "@crowdlisten/harness",
   "version": "1.0.0",
   "description": "Crowd context for AI agents — analyzed crowd intelligence from social platforms, with planning, skill packs, and semantic recall",
   "type": "module",
   "bin": {
-    "crowdlisten-planner": "dist/index.js",
+    "crowdlisten-harness": "dist/index.js",
     "crowdlisten-serve": "dist/transport/http.js",
     "crowdlisten": "dist/insights/cli.js"
   },

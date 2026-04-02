@@ -13,7 +13,7 @@ metadata:
     category: research
     tags: [audience-intelligence, social-listening, planning, knowledge-base, context-extraction]
     transports:
-      stdio: "npx @crowdlisten/planner"
+      stdio: "npx @crowdlisten/harness"
       http: "https://mcp.crowdlisten.com/mcp"
 ---
 
@@ -44,7 +44,7 @@ CrowdListen Harness is a single MCP gateway to ~41 tools across 13 skill packs:
 
 ```bash
 # Install and auto-configure
-npx @crowdlisten/planner login
+npx @crowdlisten/harness login
 
 # Or connect via HTTP
 { "url": "https://mcp.crowdlisten.com/mcp" }
@@ -54,7 +54,7 @@ npx @crowdlisten/planner login
 
 | Transport | URL | Auth |
 |-----------|-----|------|
-| stdio | `npx @crowdlisten/planner` | Browser login (stored in ~/.crowdlisten/) |
+| stdio | `npx @crowdlisten/harness` | Browser login (stored in ~/.crowdlisten/) |
 | HTTP | `https://mcp.crowdlisten.com/mcp` | Bearer token (JWT or API key) |
 | REST | `https://mcp.crowdlisten.com/tools/{name}` | Bearer token |
 

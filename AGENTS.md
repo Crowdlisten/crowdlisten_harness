@@ -5,14 +5,14 @@ Unified MCP server for AI agents. Planning, social listening, skill packs, and k
 ## Quick Start
 
 ```bash
-npx @crowdlisten/planner login
+npx @crowdlisten/harness login
 ```
 
 Auto-configures MCP for Claude Code, Cursor, Gemini CLI, Codex, OpenClaw, Amp.
 
 ### Manual MCP config (stdio)
 ```json
-{ "crowdlisten": { "command": "npx", "args": ["-y", "@crowdlisten/planner"] } }
+{ "crowdlisten": { "command": "npx", "args": ["-y", "@crowdlisten/harness"] } }
 ```
 
 ### Remote MCP config (Streamable HTTP)
@@ -31,12 +31,12 @@ Auto-configures MCP for Claude Code, Cursor, Gemini CLI, Codex, OpenClaw, Amp.
 
 | Interface | Access | Best for |
 |-----------|--------|----------|
-| MCP stdio | `npx @crowdlisten/planner` — ~41 tools | Local agents |
+| MCP stdio | `npx @crowdlisten/harness` — ~41 tools | Local agents |
 | MCP HTTP | `POST https://mcp.crowdlisten.com/mcp` | Remote agents, cloud |
 | REST | `POST https://mcp.crowdlisten.com/tools/{name}` | Non-MCP integrations |
 | OpenAPI | `GET https://mcp.crowdlisten.com/openapi.json` | Docs, code gen |
-| CLI | `npx @crowdlisten/planner login/setup/serve/openapi` | Auth, config, hosting |
-| Web UI | `npx @crowdlisten/planner context` → localhost:3847 | Visual context extraction |
+| CLI | `npx @crowdlisten/harness login/setup/serve/openapi` | Auth, config, hosting |
+| Web UI | `npx @crowdlisten/harness context` → localhost:3847 | Visual context extraction |
 
 ## Progressive Disclosure
 

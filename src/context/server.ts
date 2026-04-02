@@ -125,7 +125,7 @@ export async function startContextServer(): Promise<void> {
   <h1>CrowdListen Context</h1>
   <p>The web UI hasn't been built yet. You can:</p>
   <ol>
-    <li>Use the CLI: <code>npx @crowdlisten/planner context &lt;file&gt;</code></li>
+    <li>Use the CLI: <code>npx @crowdlisten/harness context &lt;file&gt;</code></li>
     <li>Build the web UI: <code>npm run build:web</code></li>
   </ol>
   <h2>API Endpoints</h2>
