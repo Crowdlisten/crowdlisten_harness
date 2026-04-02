@@ -43,9 +43,8 @@ describe("TOOLS definitions", () => {
     "create_plan",
     "get_plan",
     "update_plan",
-    "query_context",
-    "add_context",
-    "record_learning",
+    "save",
+    "recall",
   ];
 
   for (const toolName of expectedTools) {
@@ -139,23 +138,15 @@ describe("TOOLS definitions", () => {
       expect(tool.inputSchema.required).toContain("plan_id");
     });
 
-    it("query_context has no required fields", () => {
-      const tool = TOOLS.find((t) => t.name === "query_context")!;
+    it("save requires title and content", () => {
+      const tool = TOOLS.find((t) => t.name === "save")!;
+      expect(tool.inputSchema.required).toContain("title");
+      expect(tool.inputSchema.required).toContain("content");
+    });
+
+    it("recall has no required fields", () => {
+      const tool = TOOLS.find((t) => t.name === "recall")!;
       expect(tool.inputSchema.required).toBeUndefined();
-    });
-
-    it("add_context requires type, title, body", () => {
-      const tool = TOOLS.find((t) => t.name === "add_context")!;
-      expect(tool.inputSchema.required).toContain("type");
-      expect(tool.inputSchema.required).toContain("title");
-      expect(tool.inputSchema.required).toContain("body");
-    });
-
-    it("record_learning requires task_id, title, body", () => {
-      const tool = TOOLS.find((t) => t.name === "record_learning")!;
-      expect(tool.inputSchema.required).toContain("task_id");
-      expect(tool.inputSchema.required).toContain("title");
-      expect(tool.inputSchema.required).toContain("body");
     });
   });
 });
