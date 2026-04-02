@@ -1,7 +1,7 @@
 {
   "name": "@crowdlisten/planner",
   "version": "1.0.0",
-  "description": "Unified MCP server for AI agents — planning, social listening, skill packs, and knowledge management with progressive disclosure",
+  "description": "Crowd context for AI agents — analyzed crowd intelligence from social platforms, with planning, skill packs, and semantic recall",
   "type": "module",
   "bin": {
     "crowdlisten-planner": "dist/index.js",

@@ -1,22 +1,48 @@
 # CrowdListen
 
-> One MCP server for AI agents. Plan work, search social platforms, capture knowledge — with progressive skill disclosure so your agent only loads what it needs. Connect via stdio, Streamable HTTP, or REST.
+> CrowdListen gives AI agents crowd context — analyzed intelligence from what real users say, what markets think, and what communities want. Not just session recall. Analyzed, clustered, decision-ready.
 
 [English](README.md) | [中文文档](README-CN.md)
 
 ## The Problem
 
-AI agents are stateless. Every new session starts from scratch — no memory of yesterday's decisions, no awareness of what other agents discovered, no access to what your audience is actually saying online. You end up re-explaining context, missing user feedback scattered across seven platforms, and watching your agent rediscover the same solutions.
+AI agents have session memory. They don't have crowd context. Every new session starts from scratch — no awareness of what your audience is actually saying online, no analyzed signal from the seven platforms where users talk about your product. You end up re-explaining context, manually copy-pasting feedback from Reddit, and watching your agent make decisions without the one input that matters most: what real people think.
 
-CrowdListen fixes this with a single MCP server that closes the loop from crowd feedback to implementation:
+CrowdListen gives your agent a crowd context — a loop from listening to analysis to recall:
 
-1. **Remembers across sessions** — `save` and `recall` with semantic search. Your agent finds "JWT auth decision" when it asks about "login security", across agents and devices.
-2. **Listens to your audience** — searches Reddit, YouTube, TikTok, Twitter/X, Instagram, Xiaohongshu — and returns structured data your agent can reason about.
-3. **Analyzes what they're saying** — clusters opinions, extracts pain points, identifies feature requests across platforms.
-4. **Generates actionable specs** — turns crowd insights into implementation specs with evidence citations, acceptance criteria, and confidence scores.
-5. **Plans and tracks work** — kanban tasks, execution plans, progress tracking. Knowledge compounds over time via semantic memory.
+1. **Listen** — search Reddit, YouTube, TikTok, Twitter/X, Instagram, Xiaohongshu, forums. Get structured data your agent can reason about. (`search_content`)
+2. **Analyze** — cluster opinions by theme, extract pain points and feature requests, synthesize cross-platform reports with confidence scores. (`cluster_opinions`, `extract_insights`, `research_synthesis`)
+3. **Remember** — save analyzed crowd intelligence with semantic embeddings. Not raw posts — analyzed, categorized, decision-ready insights. (`save`)
+4. **Recall** — any agent retrieves crowd context via natural language query, across sessions, agents, and devices. Ask "what do users think about our onboarding?" and get back clustered opinions with evidence. (`recall`)
 
-Your agent starts with 5 core tools (including semantic memory). It activates skill packs on demand — planning, social listening, audience analysis, spec delivery — and only loads the tools it actually needs for the current task.
+The analysis pipeline — clustering, theme extraction, deduplication, confidence scoring — is what makes this crowd *context*, not just crowd *data*. Your agent gets analyzed intelligence, not a firehose of posts.
+
+Your agent starts with 5 core tools (including semantic memory). It activates skill packs on demand — social listening, audience analysis, planning, spec delivery — and only loads the tools it actually needs for the current task.
+
+## Crowd Context
+
+Most agent memory systems store what the agent did. CrowdListen stores what the *crowd* thinks — analyzed and ready for retrieval.
+
+Here's the loop with existing tools:
+
+```
+1. search_content("cursor vs claude code", platform: "reddit")
+   → 20 posts with engagement metrics
+
+2. cluster_opinions(content_ids)
+   → 4 opinion clusters: "Cursor better for refactoring" (38%), "Claude Code better for greenfield" (31%), ...
+
+3. extract_insights(content_ids)
+   → Pain points, feature requests, praise — categorized with confidence scores
+
+4. save({ title: "Developer tool preferences Q2 2026", content: <analyzed clusters>, tags: ["competitive-intel", "dev-tools"] })
+   → Stored with semantic embedding in pgvector
+
+5. recall({ search: "what do developers think about our product vs competitors?" })
+   → Returns analyzed clusters from step 4, ranked by semantic similarity
+```
+
+Any agent — Claude Code, Cursor, Gemini CLI, Codex — can `recall` these crowd memories later. The intelligence compounds across sessions and across agents. That's crowd context.
 
 ## Try It Now
 
