@@ -1,12 +1,12 @@
 /**
  * Agent-Proxied Tools — Tools that proxy to agent.crowdlisten.com
  *
- * 5 skill packs, 16 tools. Each tool calls the agent backend via
+ * 6 skill packs, 18 tools. Each tool calls the agent backend via
  * the shared agent-proxy helpers.
  *
  * Free vs Paid:
  *   - Free: llm (2 tools), agent-network (2 tools) — no API key needed
- *   - Paid: analysis (5), content (4), generation (2) — require CROWDLISTEN_API_KEY
+ *   - Paid: analysis (5), content (4), generation (2), crowd-intelligence (2) — require CROWDLISTEN_API_KEY
  */
 
 import {
@@ -261,6 +261,59 @@ export const AGENT_TOOLS = [
     inputSchema: { type: "object" as const, properties: {} },
   },
 
+  // ── Crowd Intelligence Pack (2 tools) — Paid ──────────────────────────
+  {
+    name: "crowd_research",
+    description:
+      "[Crowd Intelligence] Research what the crowd is saying about a topic. Searches social platforms, clusters opinions, and synthesizes structured intelligence enriched with your business context. Returns a job_id — poll with crowd_research_status. Requires CROWDLISTEN_API_KEY.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        query: {
+          type: "string",
+          description:
+            "Research question (e.g., 'What do developers think about cursor vs copilot?')",
+        },
+        platforms: {
+          type: "array",
+          items: {
+            type: "string",
+            enum: ["reddit", "twitter", "moltbook", "xiaohongshu", "web"],
+          },
+          description:
+            "Platforms to search. 'web' = Exa semantic search across forums, news, blogs. Default: all.",
+        },
+        depth: {
+          type: "string",
+          enum: ["quick", "standard", "deep"],
+          description:
+            "quick = single platform, ~30s. standard = all platforms, ~90s. deep = exhaustive, ~120s. Default: standard.",
+        },
+        context: {
+          type: "string",
+          description:
+            "Optional business context to enrich analysis. If omitted, auto-recalls saved context via semantic memory.",
+        },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "crowd_research_status",
+    description:
+      "[Crowd Intelligence] Poll the status of a crowd_research job. Returns 'queued', 'running', 'complete', or 'error'. When complete, includes the full analysis result with themes, sentiment, insights, and context connections.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        job_id: {
+          type: "string",
+          description: "The job_id returned by crowd_research",
+        },
+      },
+      required: ["job_id"],
+    },
+  },
+
   // ── Agent Network Pack (3 tools) — Mixed auth ─────────────────────────
   {
     name: "register_agent",
@@ -484,6 +537,94 @@ export async function handleAgentTool(
     case "list_llm_models": {
       const result = await agentGet("/api/v1/llm/models", apiKey);
       return JSON.stringify(result, null, 2);
+    }
+
+    // ── Crowd Intelligence ────────────────────────────────────
+    case "crowd_research": {
+      // Step 1: Auto-recall business context if not provided
+      let businessContext = args.context as string | undefined;
+      if (!businessContext) {
+        try {
+          const recallResult = await agentPost(
+            "/agent/v1/content/search",
+            { query: args.query as string, limit: 5 },
+            apiKey
+          );
+          const memories = (recallResult as any)?.results || [];
+          if (memories.length > 0) {
+            businessContext = memories
+              .map((m: any) => m.content || m.text || "")
+              .filter(Boolean)
+              .join("\n---\n");
+          }
+        } catch {
+          // Graceful degradation — run without context
+        }
+      }
+
+      // Step 2: Submit async analysis via Agent Partners API
+      const platforms = args.platforms as string[] | undefined;
+      const depth = (args.depth as string) || "standard";
+
+      const result = await agentPost(
+        "/api/agents/analyze",
+        {
+          query: args.query,
+          mode: "analyze",
+          depth: depth === "deep" ? "deep" : "standard",
+          platforms: platforms,
+          search_mode: "web_only",
+          business_context: businessContext || undefined,
+        },
+        apiKey
+      );
+
+      const response = result as any;
+      return JSON.stringify(
+        {
+          status: "running",
+          job_id: response.analysis_id,
+          estimated_seconds: response.estimated_seconds || 60,
+          message: `Analysis submitted. Poll with crowd_research_status({ job_id: "${response.analysis_id}" }) every 10 seconds.`,
+        },
+        null,
+        2
+      );
+    }
+
+    case "crowd_research_status": {
+      const result = await agentGet(
+        `/api/agents/analyze/${args.job_id}`,
+        apiKey
+      );
+      const poll = result as any;
+
+      if (poll.status === "complete") {
+        return JSON.stringify(
+          {
+            status: "complete",
+            takeaway: poll.summary,
+            sentiment: poll.sentiment,
+            themes: poll.themes,
+            key_opinions: poll.key_opinions,
+            related_questions: poll.related_questions,
+            source_count: poll.source_count,
+            share_url: poll.share_url,
+          },
+          null,
+          2
+        );
+      }
+
+      return JSON.stringify(
+        {
+          status: poll.status || "running",
+          job_id: args.job_id,
+          message: "Analysis still running. Poll again in 10 seconds.",
+        },
+        null,
+        2
+      );
     }
 
     // ── Agent Network ──────────────────────────────────────────

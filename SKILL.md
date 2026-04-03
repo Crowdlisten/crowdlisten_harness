@@ -36,6 +36,7 @@ CrowdListen Harness is a single MCP gateway to ~41 tools across 13 skill packs:
 
 **Paid (requires CROWDLISTEN_API_KEY):**
 - **Analysis** (5 tools) — Run audience analyses across Reddit, YouTube, TikTok, Twitter, Instagram
+- **Crowd Intelligence** (2 tools) — Context-enriched crowd research with async polling
 - **Content** (4 tools) — Vector search, content ingestion, semantic retrieval
 - **Generation** (2 tools) — PRD generation from analysis results
 - **Agent Network** (1 tool) — Submit cross-agent analysis results

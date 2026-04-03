@@ -66,6 +66,7 @@ After activation, new tools appear automatically via `tools/list_changed`.
 | **knowledge** | 3 | Project knowledge base |
 | **social-listening** | 7 | Search social platforms (free) |
 | **audience-analysis** | 6 | AI analysis (CROWDLISTEN_API_KEY) |
+| **crowd-intelligence** | 2 | Context-enriched crowd research (CROWDLISTEN_API_KEY) |
 | **sessions** | 3 | Multi-agent coordination |
 | **setup** | 5 | Board management |
 | **legacy** | 6 | Previous-gen context extraction |
@@ -112,6 +113,42 @@ Platforms: reddit, twitter, tiktok, instagram, youtube, moltbook
 - **deep_analyze**(platform, contentId, analysisDepth?) — Full audience intelligence
 - **extract_insights**(platform, contentId, categories?) — Pain points, feature requests
 - **research_synthesis**(query, platforms?, depth?) — Cross-platform research
+
+## Crowd Intelligence Pack (2 tools) — requires CROWDLISTEN_API_KEY
+
+Activate: `activate_skill_pack({ pack_id: "crowd-intelligence" })`
+
+| Tool | Description |
+|------|-------------|
+| `crowd_research` | Submit async crowd research. Returns job_id. |
+| `crowd_research_status` | Poll job status. Returns full analysis when complete. |
+
+**Usage pattern:**
+1. `crowd_research({ query: "...", platforms: ["reddit", "twitter"] })`
+2. Wait 10s, then poll: `crowd_research_status({ job_id: "..." })`
+3. Repeat until status is "complete"
+
+**Platforms:** reddit, twitter, moltbook, xiaohongshu, web (Exa search)
+**Depth:** quick (~30s), standard (~90s), deep (~120s)
+**Context:** Auto-recalls your saved business context. Override with `context` param.
+
+### Crowd Intelligence Example
+
+```
+Agent: activate_skill_pack({ pack_id: "crowd-intelligence" })
+Agent: crowd_research({ query: "What do users think about AI code editors?", platforms: ["reddit", "twitter"], depth: "standard" })
+→ { status: "running", job_id: "abc-123", estimated_seconds: 60 }
+
+[wait 10 seconds]
+
+Agent: crowd_research_status({ job_id: "abc-123" })
+→ { status: "running", message: "Analysis still running..." }
+
+[wait 10 seconds]
+
+Agent: crowd_research_status({ job_id: "abc-123" })
+→ { status: "complete", takeaway: "...", themes: [...], sentiment: {...} }
+```
 
 ## Analysis (5 tools) — requires CROWDLISTEN_API_KEY
 

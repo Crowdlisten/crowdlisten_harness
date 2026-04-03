@@ -168,6 +168,14 @@ export function initializeRegistry(skillsDir: string): void {
     toolNames: ["llm_complete", "list_llm_models"],
   });
 
+  // Crowd Intelligence — context-enriched crowd research
+  packs.set("crowd-intelligence", {
+    id: "crowd-intelligence",
+    name: "Crowd Intelligence",
+    description: "Research what the crowd says about any topic — social listening with business context enrichment. Async: submit research, poll for results. Requires CROWDLISTEN_API_KEY.",
+    toolNames: ["crowd_research", "crowd_research_status"],
+  });
+
   // Agent Network — register, discover, share
   packs.set("agent-network", {
     id: "agent-network",
