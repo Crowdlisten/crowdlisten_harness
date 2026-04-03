@@ -130,17 +130,27 @@ Activate: `activate_skill_pack({ pack_id: "crowd-intelligence" })`
 
 **Platforms:** reddit, twitter, moltbook, xiaohongshu, web (Exa search)
 **Depth:** quick (~30s), standard (~90s), deep (~120s)
-**Context:** Auto-recalls your saved business context. Override with `context` param.
+**Context enrichment:** Call `recall()` first to retrieve saved business context, then pass it via the `context` param. The analysis will connect crowd signals to your specific situation.
 
 ### Crowd Intelligence Example
 
 ```
 Agent: activate_skill_pack({ pack_id: "crowd-intelligence" })
-Agent: crowd_research({ query: "What do users think about AI code editors?", platforms: ["reddit", "twitter"], depth: "standard" })
+
+# Step 1: Recall your business context
+Agent: recall({ search: "our product and audience" })
+→ { memories: [{ content: "We build a code editor for junior developers..." }] }
+
+# Step 2: Submit research with context
+Agent: crowd_research({
+  query: "What do users think about AI code editors?",
+  platforms: ["reddit", "twitter"],
+  depth: "standard",
+  context: "We build a code editor for junior developers..."
+})
 → { status: "running", job_id: "abc-123", estimated_seconds: 60 }
 
-[wait 10 seconds]
-
+# Step 3: Poll for results
 Agent: crowd_research_status({ job_id: "abc-123" })
 → { status: "running", message: "Analysis still running..." }
 

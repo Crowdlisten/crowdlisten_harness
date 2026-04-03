@@ -292,7 +292,7 @@ export const AGENT_TOOLS = [
         context: {
           type: "string",
           description:
-            "Optional business context to enrich analysis. If omitted, auto-recalls saved context via semantic memory.",
+            "Optional business context to enrich analysis (e.g., product description, target audience). Use recall() first to retrieve saved context, then pass it here.",
         },
       },
       required: ["query"],
@@ -541,30 +541,9 @@ export async function handleAgentTool(
 
     // ── Crowd Intelligence ────────────────────────────────────
     case "crowd_research": {
-      // Step 1: Auto-recall business context if not provided
-      let businessContext = args.context as string | undefined;
-      if (!businessContext) {
-        try {
-          const recallResult = await agentPost(
-            "/agent/v1/content/search",
-            { query: args.query as string, limit: 5 },
-            apiKey
-          );
-          const memories = (recallResult as any)?.results || [];
-          if (memories.length > 0) {
-            businessContext = memories
-              .map((m: any) => m.content || m.text || "")
-              .filter(Boolean)
-              .join("\n---\n");
-          }
-        } catch {
-          // Graceful degradation — run without context
-        }
-      }
-
-      // Step 2: Submit async analysis via Agent Partners API
       const platforms = args.platforms as string[] | undefined;
       const depth = (args.depth as string) || "standard";
+      const businessContext = args.context as string | undefined;
 
       const result = await agentPost(
         "/api/agents/analyze",
