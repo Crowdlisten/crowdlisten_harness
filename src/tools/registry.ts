@@ -176,6 +176,14 @@ export function initializeRegistry(skillsDir: string): void {
     toolNames: ["crowd_research", "crowd_research_status"],
   });
 
+  // Insight Pipeline — promote insights to kanban
+  packs.set("insight-pipeline", {
+    id: "insight-pipeline",
+    name: "Insight Pipeline",
+    description: "Promote extracted insights to kanban task cards — single or batch promote, list pending insights. Review mode with dedup. Requires CROWDLISTEN_API_KEY.",
+    toolNames: ["promote_insight", "batch_promote_insights", "get_pending_insights"],
+  });
+
   // Agent Network — register, discover, share
   packs.set("agent-network", {
     id: "agent-network",
