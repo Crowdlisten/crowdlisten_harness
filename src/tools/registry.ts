@@ -64,8 +64,8 @@ export function initializeRegistry(skillsDir: string): void {
   packs.set("core", {
     id: "core",
     name: "Core",
-    description: "Discovery + memory — list skill packs, activate packs, save and recall context with semantic search",
-    toolNames: ["list_skill_packs", "activate_skill_pack", "save", "recall", "set_preferences"],
+    description: "Discovery + memory — list skill packs, activate packs, save/recall/sync/compile context as .md knowledge base",
+    toolNames: ["list_skill_packs", "activate_skill_pack", "save", "recall", "sync_context", "compile_context", "publish_context", "set_preferences"],
   });
 
   // Planning — task management
@@ -174,6 +174,14 @@ export function initializeRegistry(skillsDir: string): void {
     name: "Crowd Intelligence",
     description: "Research what the crowd says about any topic — social listening with business context enrichment. Async: submit research, poll for results. Requires CROWDLISTEN_API_KEY.",
     toolNames: ["crowd_research", "crowd_research_status"],
+  });
+
+  // Insight Pipeline — promote insights to kanban
+  packs.set("insight-pipeline", {
+    id: "insight-pipeline",
+    name: "Insight Pipeline",
+    description: "Promote extracted insights to kanban task cards — single or batch promote, list pending insights. Review mode with dedup. Requires CROWDLISTEN_API_KEY.",
+    toolNames: ["promote_insight", "batch_promote_insights", "get_pending_insights"],
   });
 
   // Agent Network — register, discover, share

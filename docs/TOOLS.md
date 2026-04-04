@@ -122,49 +122,63 @@ Iterate on a plan. Content changes archive the current version. Setting feedback
 
 ## Knowledge Base
 
-### `query_context`
-Search the knowledge base. All parameters are optional.
+Supabase is the source of truth. Local `.md` files at `~/.crowdlisten/context/` are a rendered cache that agents browse via `INDEX.md`.
+
+### `save`
+Save context that persists across sessions. Renders to `~/.crowdlisten/context/`.
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
-| `project_id` | No | Filter by project |
-| `task_id` | No | Filter by task |
-| `type` | No | `decision`, `constraint`, `preference`, `pattern`, `learning`, `principle` |
-| `search` | No | Full-text search across title and body |
+| `title` | Yes | Short title |
+| `content` | Yes | The content to remember |
+| `tags` | No | Freeform tags (e.g. `['decision', 'auth', 'pattern']`) |
+| `project_id` | No | Optional project scope |
+| `task_id` | No | Optional task association |
+| `confidence` | No | 0.0--1.0 (default 1.0) |
+
+**Returns**: `{ saved, id, title, tags, supabase }`
+
+### `recall`
+Search saved context using keyword matching.
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `search` | No | Search query (matches title and content) |
 | `tags` | No | Filter by tags (array) |
+| `project_id` | No | Filter by project |
 | `limit` | No | Max results (default 20) |
 
-**Returns**: `{ entries[], count }`
+**Returns**: `{ memories[], count, search_mode, index_path }`
 
-### `add_context`
-Write a new entry to the knowledge base.
+For structured browsing, read `~/.crowdlisten/context/INDEX.md` directly.
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `type` | Yes | `decision`, `constraint`, `preference`, `pattern`, `learning`, `principle` |
-| `title` | Yes | Entry title |
-| `body` | Yes | Entry content |
-| `project_id` | No | Scope to project |
-| `task_id` | No | Scope to task |
-| `tags` | No | Tags for filtering |
-| `confidence` | No | 0.0--1.0 (default 1.0) |
-| `supersedes` | No | ID of entry this replaces |
-
-**Returns**: `{ context_id, status: "active" }`
-
-### `record_learning`
-Capture an outcome from completed work. Optionally promote to project scope.
+### `sync_context`
+Pull all context from cloud and rebuild local `.md` knowledge base.
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
-| `task_id` | Yes | Task the learning came from |
-| `title` | Yes | Learning title |
-| `body` | Yes | What was learned |
-| `learning_type` | No | `outcome`, `pattern`, `mistake`, `optimization`, `decision_record` |
-| `tags` | No | Tags for filtering |
-| `promote` | No | `true` to copy to project scope |
+| `full` | No | Force full rebuild (default: true) |
 
-**Returns**: `{ learning_id, promoted_id }`
+**Returns**: `{ synced, entry_count, index_path, meta }`
+
+### `compile_context`
+Organize knowledge base: detect duplicates, group by topic, rebuild INDEX.md.
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `dry_run` | No | Preview only, no file changes (default: false) |
+
+**Returns**: `{ total_entries, tag_groups, topic_candidates, duplicates, hint }`
+
+### `publish_context`
+Publish a saved memory to your team.
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `memory_id` | Yes | Memory UUID to publish |
+| `team_id` | Yes | Team UUID to share with |
+
+**Returns**: `{ published, memory_id, team_id }`
 
 ## Sessions & Boards
 

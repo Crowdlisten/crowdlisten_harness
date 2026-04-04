@@ -339,9 +339,8 @@ async function startMcpServer() {
 
   // Build tool→pack mapping for telemetry tagging
   const toolPackMap = buildToolPackMap([
-    { id: "core", toolNames: ["list_skill_packs", "activate_skill_pack", "remember", "recall", "set_preferences"] },
+    { id: "core", toolNames: ["list_skill_packs", "activate_skill_pack", "save", "recall", "sync_context", "compile_context", "publish_context", "set_preferences"] },
     { id: "planning", toolNames: ["list_tasks", "create_task", "get_task", "update_task", "claim_task", "complete_task", "log_progress", "delete_task", "create_plan", "get_plan", "update_plan"] },
-    { id: "knowledge", toolNames: ["query_context", "add_context", "record_learning", "log_learning", "search_learnings"] },
     { id: "social-listening", toolNames: ["search_content", "get_content_comments", "get_trending_content", "get_user_content", "get_platform_status", "health_check", "extract_url"] },
     { id: "audience-analysis", toolNames: ["analyze_content", "cluster_opinions", "enrich_content", "deep_analyze", "extract_insights", "research_synthesis"] },
     { id: "sessions", toolNames: ["start_session", "list_sessions", "update_session"] },

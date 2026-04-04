@@ -358,6 +358,47 @@ export const AGENT_TOOLS = [
       required: ["agent_id", "analysis_id", "summary"],
     },
   },
+
+  // ── Insight Pipeline (3 tools) ────────────────────────────────────────
+  {
+    name: "promote_insight",
+    description:
+      "[Insight Pipeline] Promote a single pending insight to a kanban card. Creates a card in the To Do column with needs-review label. Deduplicates against existing cards. Requires CROWDLISTEN_API_KEY.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        insight_id: { type: "string", description: "Insight UUID to promote" },
+        board_id: { type: "string", description: "Target kanban board UUID" },
+      },
+      required: ["insight_id", "board_id"],
+    },
+  },
+  {
+    name: "batch_promote_insights",
+    description:
+      "[Insight Pipeline] Promote all pending insights for a project to kanban cards. Creates cards in the To Do column with needs-review labels. Deduplicates automatically. Returns counts of promoted, skipped, and errors. Requires CROWDLISTEN_API_KEY.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        project_id: { type: "string", description: "Project UUID" },
+        board_id: { type: "string", description: "Target kanban board UUID" },
+      },
+      required: ["project_id", "board_id"],
+    },
+  },
+  {
+    name: "get_pending_insights",
+    description:
+      "[Insight Pipeline] List pending insights for a project that haven't been promoted to kanban cards yet. Useful for reviewing what insights are available before promoting. Requires CROWDLISTEN_API_KEY.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        project_id: { type: "string", description: "Project UUID" },
+        limit: { type: "number", description: "Max insights to return (default 20)" },
+      },
+      required: ["project_id"],
+    },
+  },
 ];
 
 // ─── Agent Tool Names (for dispatch routing) ───────────────────────────────
@@ -400,7 +441,9 @@ export async function handleAgentTool(
         apiKey,
         180_000 // 3 min timeout for analysis
       );
-      return JSON.stringify(result, null, 2);
+      const out: Record<string, unknown> = typeof result === "object" && result !== null ? { ...result as Record<string, unknown> } : { result };
+      out._knowledge_base_hint = "Save key insights from this analysis using save(). Run compile_context() periodically to organize.";
+      return JSON.stringify(out, null, 2);
     }
 
     case "continue_analysis": {
@@ -610,6 +653,7 @@ export async function handleAgentTool(
             related_questions: poll.related_questions,
             source_count: poll.source_count,
             share_url: poll.share_url,
+            _knowledge_base_hint: "Save key insights from this research using save(). Run compile_context() periodically to organize.",
           },
           null,
           2
@@ -654,6 +698,37 @@ export async function handleAgentTool(
           analysis_id: args.analysis_id,
           summary: args.summary,
         },
+        apiKey
+      );
+      return JSON.stringify(result, null, 2);
+    }
+
+    // ── Insight Pipeline ────────────────────────────────────
+    case "promote_insight": {
+      const result = await agentPost(
+        `/agent/v1/insights/${args.insight_id}/promote`,
+        { board_id: args.board_id },
+        apiKey
+      );
+      return JSON.stringify(result, null, 2);
+    }
+
+    case "batch_promote_insights": {
+      const result = await agentPost(
+        "/agent/v1/insights/batch-promote",
+        {
+          project_id: args.project_id,
+          board_id: args.board_id,
+        },
+        apiKey
+      );
+      return JSON.stringify(result, null, 2);
+    }
+
+    case "get_pending_insights": {
+      const limit = (args.limit as number) || 20;
+      const result = await agentGet(
+        `/agent/v1/insights/pending/${args.project_id}?limit=${limit}`,
         apiKey
       );
       return JSON.stringify(result, null, 2);
