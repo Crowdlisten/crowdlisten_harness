@@ -441,7 +441,9 @@ export async function handleAgentTool(
         apiKey,
         180_000 // 3 min timeout for analysis
       );
-      return JSON.stringify(result, null, 2);
+      const out: Record<string, unknown> = typeof result === "object" && result !== null ? { ...result as Record<string, unknown> } : { result };
+      out._knowledge_base_hint = "Save key insights from this analysis using save(). Run compile_context() periodically to organize.";
+      return JSON.stringify(out, null, 2);
     }
 
     case "continue_analysis": {
@@ -651,6 +653,7 @@ export async function handleAgentTool(
             related_questions: poll.related_questions,
             source_count: poll.source_count,
             share_url: poll.share_url,
+            _knowledge_base_hint: "Save key insights from this research using save(). Run compile_context() periodically to organize.",
           },
           null,
           2

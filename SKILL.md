@@ -23,21 +23,21 @@ Audience intelligence, social listening, planning, and context extraction for AI
 
 ## What It Does
 
-CrowdListen Harness is a single MCP gateway to ~41 tools across 13 skill packs:
+CrowdListen Harness is a single MCP gateway to ~44 tools across 12 skill packs:
 
 **Free (no API key):**
-- **Planning** (11 tools) — Task management, execution plans, knowledge base
+- **Planning** (11 tools) — Task management, execution plans, progress tracking
 - **Sessions** (3 tools) — Multi-agent parallel coordination
 - **Setup** (5 tools) — Board and project management
 - **Context Extraction** (3 tools) — PII redaction, skill matching from chat transcripts
-- **Skill Discovery** (3 tools) — Browse and install 154 skills (8 native + 146 community)
+- **Skill Discovery** (3 tools) — Browse and install 155 skills (9 native + 146 community)
 - **LLM Proxy** (2 tools) — Free LLM completions through CrowdListen
 - **Agent Network** (2 tools) — Register agents, discover capabilities
 
 **Paid (requires CROWDLISTEN_API_KEY):**
 - **Analysis** (5 tools) — Run audience analyses across Reddit, YouTube, TikTok, Twitter, Instagram
 - **Crowd Intelligence** (2 tools) — Context-enriched crowd research with async polling
-- **Content** (4 tools) — Vector search, content ingestion, semantic retrieval
+- **Content** (4 tools) — Vector search, content ingestion
 - **Generation** (2 tools) — PRD generation from analysis results
 - **Agent Network** (1 tool) — Submit cross-agent analysis results
 
@@ -62,10 +62,10 @@ npx @crowdlisten/harness login
 ## Core Workflow
 
 ```
-list_tasks → claim_task → query_context → create_plan → execute → record_learning → complete_task
+list_tasks → claim_task → recall → create_plan → execute → save → complete_task
 ```
 
-Every task captures decisions, patterns, and learnings. The next task inherits all of it.
+Every task captures decisions, patterns, and learnings via `save`. Run `compile_context` to organize. Browse `~/.crowdlisten/context/INDEX.md` to navigate.
 
 ## Links
 

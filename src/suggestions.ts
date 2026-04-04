@@ -33,9 +33,9 @@ const HEURISTIC_RULES: HeuristicRule[] = [
     reason: "Your work involves analysis. Activate audience-analysis for AI-powered content analysis and opinion clustering.",
   },
   {
-    keywords: ["knowledge", "learning", "context", "decision", "pattern"],
-    pack: "knowledge",
-    reason: "Your work involves knowledge management. Activate the knowledge pack to query decisions and record learnings.",
+    keywords: ["knowledge", "learning", "context", "decision", "pattern", "compile", "synthesize"],
+    pack: "knowledge-base",
+    reason: "Your work involves knowledge management. Activate the knowledge-base skill for capture-compile-synthesize workflows.",
   },
   {
     keywords: ["plan", "task", "milestone", "roadmap", "backlog"],

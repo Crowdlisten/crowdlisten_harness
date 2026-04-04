@@ -40,7 +40,7 @@ Auto-configures MCP for Claude Code, Cursor, Gemini CLI, Codex, OpenClaw, Amp.
 
 ## Progressive Disclosure
 
-You start with **4 tools**. Activate skill packs to unlock more:
+You start with **8 tools**. Activate skill packs to unlock more:
 
 ```
 list_skill_packs()                              → see available packs
@@ -50,28 +50,31 @@ activate_skill_pack({ pack_id: "social-listening" }) → unlocks 7 social tools
 
 After activation, new tools appear automatically via `tools/list_changed`.
 
-## Always-On Tools (4)
+## Always-On Tools (8)
 
 - **list_skill_packs**(include_virtual?) — List all packs with status (active/available), tool counts
 - **activate_skill_pack**(pack_id) — Activate a pack to unlock its tools. For SKILL.md packs, returns workflow instructions.
-- **remember**(type, title, content) — Save context across sessions. Types: preference, decision, pattern, insight, style
-- **recall**(type?, search?, limit?) — Retrieve saved context blocks
+- **save**(title, content, tags?, project_id?, confidence?) — Save context to .md knowledge base. Renders to ~/.crowdlisten/context/.
+- **recall**(search?, tags?, project_id?, limit?) — Search saved context via keyword matching. For structured browsing, read ~/.crowdlisten/context/INDEX.md.
+- **sync_context**(full?) — Pull all context from cloud and rebuild local .md knowledge base.
+- **compile_context**(dry_run?) — Organize knowledge base: detect duplicates, group by topic, rebuild INDEX.md.
+- **publish_context**(memory_id, team_id) — Share a memory with your team.
+- **set_preferences**(...) — Set user preferences.
 
 ## Skill Packs
 
 | Pack | Tools | Description |
 |------|-------|-------------|
-| **core** (always on) | 4 | Discovery + memory |
+| **core** (always on) | 8 | .md knowledge base + discovery |
 | **planning** | 11 | Tasks, plans, progress tracking |
-| **knowledge** | 3 | Project knowledge base |
 | **social-listening** | 7 | Search social platforms (free) |
 | **audience-analysis** | 6 | AI analysis (CROWDLISTEN_API_KEY) |
 | **crowd-intelligence** | 2 | Context-enriched crowd research (CROWDLISTEN_API_KEY) |
 | **sessions** | 3 | Multi-agent coordination |
 | **setup** | 5 | Board management |
-| **legacy** | 6 | Previous-gen context extraction |
+| **spec-delivery** | 3 | Actionable specs from crowd feedback |
 
-Plus: 8 native SKILL.md workflow packs (competitive-analysis, content-creator, etc.)
+Plus: 9 native SKILL.md workflow packs (knowledge-base, competitive-analysis, content-creator, etc.)
 
 ## Planning Pack (11 tools)
 
@@ -86,12 +89,6 @@ Plus: 8 native SKILL.md workflow packs (competitive-analysis, content-creator, e
 - **create_plan**(task_id, approach, ...) — Draft execution plan
 - **get_plan**(task_id) — View plan with history
 - **update_plan**(plan_id, ...) — Iterate, submit for review
-
-## Knowledge Pack (3 tools)
-
-- **query_context**(search?, type?, tags?) — Search decisions, patterns, learnings
-- **add_context**(type, title, body, ...) — Write to knowledge base
-- **record_learning**(task_id, title, body, promote?) — Capture learning
 
 ## Social Listening Pack (7 tools, free)
 
@@ -187,18 +184,58 @@ Agent: crowd_research_status({ job_id: "abc-123" })
 - **get_capabilities**() — List network capabilities. Free.
 - **submit_analysis**(agent_id, analysis_id, summary) — Share analysis results. Requires API key.
 
+## Knowledge Base
+
+The knowledge base is a compounding loop: every agent interaction can make it better. Raw saves accumulate, compile organizes them into topics, agents browse the index to find what they need, and research results get filed back. Over time the knowledge base becomes a rich starting point instead of a blank slate.
+
+### How data flows
+
+```
+ save()          Supabase              ~/.crowdlisten/context/
+───────→  memories table  ──render──→  ├── INDEX.md
+                                       ├── entries/a1b2c3d4.md
+ recall()        ↑                     └── topics/auth.md
+←────────────────┘
+                                       compile_context()
+ sync_context()                        detects duplicates,
+ rebuilds local ←──── full pull ────── groups by topic,
+ .md cache                             suggests syntheses
+```
+
+1. **Save** — `save({ title, content, tags })` writes to Supabase and renders a `.md` file locally with YAML frontmatter (id, title, tags, source_agent, timestamp).
+2. **Recall** — `recall({ search })` queries Supabase via keyword matching. For structured browsing, agents read `~/.crowdlisten/context/INDEX.md` directly. INDEX.md groups entries by tag, lists recent entries, and links to topic summaries.
+3. **Sync** — `sync_context()` pulls all entries from cloud and rebuilds the entire local `.md` folder. Use after web uploads or switching machines.
+4. **Compile** — `compile_context()` scans all entries, detects near-duplicates (Jaccard similarity), identifies topics with 3+ entries, and rebuilds `INDEX.md`. Returns a report telling the agent what to synthesize or prune.
+5. **Publish** — `publish_context({ memory_id, team_id })` shares an entry with teammates. Their next `sync_context` pulls it into a `## Shared` section in their INDEX.md.
+
+### The compounding effect
+
+After every analysis or research task, the agent saves 2-3 key insights. Over time, `compile_context` groups these into topics. The agent synthesizes topics into distilled summaries. The next agent (or the same agent in a new session) starts with a rich INDEX.md instead of a blank slate. Each cycle makes the knowledge base more useful.
+
+Supabase is the source of truth. The local `.md` folder is a read-only rendered cache. No sync conflicts, no merge issues.
+
+### Tag vocabulary
+
+Use consistent tags so compile can group effectively: `decision`, `pattern`, `insight`, `preference`, `learning`, `principle`, `synthesis`.
+
+### When to compile
+
+- After accumulating 20+ new entries
+- Before starting a new project or research area
+- Periodically (weekly) to keep the index fresh
+
 ## Core Workflow
 
 ```
 list_skill_packs → activate_skill_pack("planning")
-→ list_tasks → claim_task → query_context → create_plan
-→ [human review] → execute → record_learning → complete_task
+→ list_tasks → claim_task → recall → create_plan
+→ [human review] → execute → save → complete_task
 ```
 
 ## Privacy
 
 - PII redacted locally before LLM calls
-- Context stored locally (~/.crowdlisten/)
+- Context stored in Supabase with row-level security + local .md cache at ~/.crowdlisten/context/
 - User's own API keys for extraction
 - No data syncs without explicit user action
 - Agent-proxied tools go through `agent.crowdlisten.com` with your API key

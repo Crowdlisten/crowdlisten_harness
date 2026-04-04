@@ -636,7 +636,7 @@ export const TOOLS = [
   {
     name: "save",
     description:
-      "Save context that persists across sessions. Use tags to categorize (e.g. 'decision', 'pattern', 'preference'). Embedding is auto-generated for semantic recall.",
+      "Save context that persists across sessions. Use tags to categorize (e.g. 'decision', 'pattern', 'preference'). Renders to ~/.crowdlisten/context/ for browsing.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -672,7 +672,7 @@ export const TOOLS = [
   {
     name: "recall",
     description:
-      "Search saved memories using semantic similarity. Returns most relevant results ranked by meaning, not just keywords.",
+      "Search saved context using keyword matching. For structured browsing, read ~/.crowdlisten/context/INDEX.md directly.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -694,6 +694,54 @@ export const TOOLS = [
           description: "Max results (default 20)",
         },
       },
+    },
+  },
+  // ── Knowledge Base Management ─────────────────────────────────────
+  {
+    name: "sync_context",
+    description:
+      "Pull all context from cloud and rebuild local .md knowledge base at ~/.crowdlisten/context/. Use after web uploads or when switching machines.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        full: {
+          type: "boolean",
+          description: "Force full rebuild (default: true)",
+        },
+      },
+    },
+  },
+  {
+    name: "compile_context",
+    description:
+      "Organize knowledge base: detect duplicates, group by topic, rebuild INDEX.md. Returns a report — use it to decide what to synthesize or prune.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        dry_run: {
+          type: "boolean",
+          description: "Preview only, no file changes (default: false)",
+        },
+      },
+    },
+  },
+  {
+    name: "publish_context",
+    description:
+      "Publish a saved memory to your team. Teammates will see it in their INDEX.md '## Shared' section after sync_context.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        memory_id: {
+          type: "string",
+          description: "Memory UUID to publish",
+        },
+        team_id: {
+          type: "string",
+          description: "Team UUID to share with",
+        },
+      },
+      required: ["memory_id", "team_id"],
     },
   },
   // ── Spec Delivery ─────────────────────────────────────────────────
@@ -1832,25 +1880,13 @@ export async function handleTool(
         savedToSupabase = true;
         memoryId = row!.id;
 
-        // Fire-and-forget: generate embedding via agent backend
-        const AGENT_BASE = process.env.CROWDLISTEN_AGENT_URL || "https://agent.crowdlisten.com";
-        fetch(`${AGENT_BASE}/agent/v1/content/embed`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: `${title}\n${content}` }),
-        })
-          .then(res => res.ok ? res.json() : null)
-          .then(data => {
-            if (data?.embedding && memoryId) {
-              sb.from("memories")
-                .update({ embedding: data.embedding })
-                .eq("id", memoryId)
-                .then(() => {});
-            }
-          })
-          .catch(() => {
-            // Non-blocking — row exists without embedding, keyword fallback on recall
-          });
+        // Render to local .md knowledge base (non-blocking)
+        try {
+          const { renderEntry } = await import("./context/md-store.js");
+          renderEntry({ id: memoryId!, title, content, tags, source: "agent", source_agent: sourceAgent, project_id: projectId, confidence, created_at: new Date().toISOString() });
+        } catch {
+          // Non-blocking — local render failure doesn't affect save
+        }
 
         // Side effect: dual-write to project_insights for frontend visibility
         const knowledgeTags = ["decision", "pattern", "preference", "learning", "principle"];
@@ -1891,89 +1927,159 @@ export async function handleTool(
       const limit = (args.limit as number) || 20;
 
       try {
-        // Try semantic search first via agent embedding endpoint
-        const AGENT_BASE = process.env.CROWDLISTEN_AGENT_URL || "https://agent.crowdlisten.com";
-        let usedSemantic = false;
+        let query = sb
+          .from("memories")
+          .select("id, title, content, tags, source, source_agent, task_id, project_id, confidence, metadata, created_at")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(limit);
 
-        if (search) {
-          try {
-            const embedRes = await fetch(`${AGENT_BASE}/agent/v1/content/embed`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ text: search }),
-            });
+        if (projectId) query = query.eq("project_id", projectId);
+        if (tags && tags.length > 0) query = query.overlaps("tags", tags);
+        if (search) query = query.or(`title.ilike.%${search}%,content.ilike.%${search}%`);
 
-            if (embedRes.ok) {
-              const embedData = await embedRes.json() as { embedding?: number[] };
-              if (embedData.embedding) {
-                // Use RPC for semantic search
-                const rpcArgs: Record<string, unknown> = {
-                  p_user_id: userId,
-                  p_query_embedding: embedData.embedding,
-                  p_match_count: limit,
-                };
-                if (projectId) rpcArgs.p_project_id = projectId;
-                if (tags && tags.length > 0) rpcArgs.p_tags = tags;
+        const { data, error } = await query;
+        if (error) throw error;
 
-                const { data, error: rpcErr } = await sb.rpc("search_memories", rpcArgs);
-                if (!rpcErr && data && (data as unknown[]).length > 0) {
-                  usedSemantic = true;
-                  return json({
-                    memories: data,
-                    count: (data as unknown[]).length,
-                    search_mode: "semantic",
-                  });
-                }
-              }
-            }
-          } catch {
-            // Embedding API unavailable — fall through to keyword search
+        return json({
+          memories: data || [],
+          count: (data || []).length,
+          search_mode: "keyword",
+          index_path: "~/.crowdlisten/context/INDEX.md",
+        });
+      } catch {
+        // Fallback: local .md index → legacy JSON
+        const { searchLocalIndex } = await import("./context/md-store.js");
+        const results = searchLocalIndex(search, { tags, limit });
+        return json({ memories: results, count: results.length, search_mode: "local_md" });
+      }
+    }
+
+    // ── Knowledge Base Management ──────────────────────────────────
+    case "sync_context": {
+      try {
+        const { data, error } = await sb
+          .from("memories")
+          .select("id, title, content, tags, source, source_agent, project_id, confidence, created_at")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false });
+
+        if (error) throw error;
+
+        const { renderAll, readMeta } = await import("./context/md-store.js");
+        renderAll(data || []);
+        const meta = readMeta();
+
+        return json({
+          synced: true,
+          entry_count: (data || []).length,
+          index_path: "~/.crowdlisten/context/INDEX.md",
+          meta,
+        });
+      } catch (err: any) {
+        return json({ error: `Sync failed: ${err?.message || err}` });
+      }
+    }
+
+    case "compile_context": {
+      const dryRun = (args.dry_run as boolean) ?? false;
+
+      try {
+        const { data, error } = await sb
+          .from("memories")
+          .select("id, title, content, tags, source, source_agent, project_id, confidence, created_at")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false });
+
+        if (error) throw error;
+        const memories = data || [];
+
+        // Group by primary tag
+        const tagGroups: Record<string, { count: number; titles: string[] }> = {};
+        for (const m of memories) {
+          for (const tag of m.tags || []) {
+            if (!tagGroups[tag]) tagGroups[tag] = { count: 0, titles: [] };
+            tagGroups[tag].count++;
+            if (tagGroups[tag].titles.length < 5) tagGroups[tag].titles.push(m.title);
           }
         }
 
-        // Keyword fallback: ILIKE on title/content
-        if (!usedSemantic) {
-          let query = sb
-            .from("memories")
-            .select("id, title, content, tags, source, source_agent, task_id, project_id, confidence, metadata, created_at")
-            .eq("user_id", userId)
-            .order("created_at", { ascending: false })
-            .limit(limit);
-
-          if (projectId) query = query.eq("project_id", projectId);
-          if (tags && tags.length > 0) query = query.overlaps("tags", tags);
-          if (search) query = query.or(`title.ilike.%${search}%,content.ilike.%${search}%`);
-
-          const { data, error: sbErr } = await query;
-          if (sbErr) throw sbErr;
-
-          return json({
-            memories: data || [],
-            count: (data || []).length,
-            search_mode: "keyword",
-          });
+        // Detect near-duplicates (Jaccard similarity on title words)
+        const duplicates: Array<{ a: string; b: string; similarity: number; titleA: string; titleB: string }> = [];
+        for (let i = 0; i < memories.length; i++) {
+          const wordsA = new Set(memories[i].title.toLowerCase().split(/\s+/));
+          for (let j = i + 1; j < memories.length; j++) {
+            const wordsB = new Set(memories[j].title.toLowerCase().split(/\s+/));
+            const intersection = new Set([...wordsA].filter(w => wordsB.has(w)));
+            const union = new Set([...wordsA, ...wordsB]);
+            const similarity = union.size > 0 ? intersection.size / union.size : 0;
+            if (similarity >= 0.7) {
+              duplicates.push({
+                a: memories[i].id,
+                b: memories[j].id,
+                similarity: Math.round(similarity * 100) / 100,
+                titleA: memories[i].title,
+                titleB: memories[j].title,
+              });
+            }
+          }
         }
-      } catch {
-        // Fallback to local store
-        let blocks = getBlocks();
-        if (search) {
-          const lower = search.toLowerCase();
-          blocks = blocks.filter(
-            b =>
-              b.title.toLowerCase().includes(lower) ||
-              b.content.toLowerCase().includes(lower)
-          );
+
+        // Identify topic candidates (tags with 3+ entries)
+        const topicCandidates = Object.entries(tagGroups)
+          .filter(([, g]) => g.count >= 3)
+          .map(([tag, g]) => ({ tag, count: g.count, sample_titles: g.titles }));
+
+        // Rebuild if not dry run
+        if (!dryRun) {
+          const { renderAll } = await import("./context/md-store.js");
+          renderAll(memories);
         }
-        blocks = blocks.slice(-limit);
+
+        const hint = topicCandidates.length > 0
+          ? `Consider synthesizing topics: ${topicCandidates.map(t => t.tag).join(", ")}. Read entries for each topic, write a synthesis, save it with tag 'synthesis'.`
+          : duplicates.length > 0
+            ? "Review and merge duplicate entries to keep the knowledge base clean."
+            : "Knowledge base looks clean. No action needed.";
+
         return json({
-          memories: blocks,
-          count: blocks.length,
-          search_mode: "local",
+          total_entries: memories.length,
+          tag_groups: tagGroups,
+          topic_candidates: topicCandidates,
+          duplicates: duplicates.slice(0, 20),
+          dry_run: dryRun,
+          hint,
         });
+      } catch (err: any) {
+        return json({ error: `Compile failed: ${err?.message || err}` });
+      }
+    }
+
+    case "publish_context": {
+      const memoryId = args.memory_id as string;
+      const teamId = args.team_id as string;
+
+      if (!memoryId || !teamId) {
+        return json({ error: "Missing required parameters: memory_id, team_id" });
       }
 
-      // Should not reach here, but return empty just in case
-      return json({ memories: [], count: 0, search_mode: "none" });
+      try {
+        const { error } = await sb
+          .from("memories")
+          .update({
+            is_published: true,
+            published_at: new Date().toISOString(),
+            team_id: teamId,
+          })
+          .eq("id", memoryId)
+          .eq("user_id", userId);
+
+        if (error) throw error;
+
+        return json({ published: true, memory_id: memoryId, team_id: teamId });
+      } catch (err: any) {
+        return json({ error: `Publish failed: ${err?.message || err}` });
+      }
     }
 
     // ── Spec Delivery ────────────────────────────────────────────────
