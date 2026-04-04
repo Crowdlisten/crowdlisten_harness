@@ -15,7 +15,7 @@ CrowdListen fixes this with a four-step loop:
 1. **Listen** — search Reddit, YouTube, TikTok, Twitter/X, Instagram, Xiaohongshu, and forums
 2. **Analyze** — cluster opinions by theme, extract pain points, synthesize cross-platform reports
 3. **Save** — capture insights into a .md knowledge base that compounds across sessions
-4. **Recall** — any agent retrieves context via keyword search or browses INDEX.md directly
+4. **Recall** — any agent retrieves context via semantic search or browses INDEX.md directly
 
 Any agent — Claude Code, Cursor, Gemini CLI, Codex — can recall this later. The intelligence compounds across sessions and across agents. That's crowd context.
 
@@ -67,6 +67,7 @@ For remote access, use the HTTP transport:
 | **Analyze audience signal** | Cluster opinions, extract pain points, generate cross-platform reports | AI groups comments by theme, scores sentiment, identifies competitive signals |
 | **Save and recall across sessions** | .md knowledge base that compounds across agents and devices | Your agent saves with `save`, retrieves with `recall`, browses `~/.crowdlisten/context/INDEX.md`, organizes with `sync_context({ organize: true })` |
 | **Plan and track work** | Tasks, execution plans, progress tracking, server-side execution | Your agent claims tasks, drafts plans with assumptions and risks, logs progress, triggers agent execution and polls status |
+| **Run full analyses** | End-to-end crowd analysis with streaming results | `run_analysis` triggers the full pipeline on the backend; `continue_analysis` for follow-ups |
 | **Get specs from crowd feedback** | Turn crowd intelligence into implementation-ready specs | Specs include evidence citations, acceptance criteria, and confidence scores |
 | **Extract from any website** | Screenshot any URL and get structured data back | Vision mode sends screenshots to an LLM — works on forums, paywalled sites, anything with a URL |
 
@@ -74,7 +75,7 @@ For remote access, use the HTTP transport:
 
 ![CrowdListen Pipeline — Raw Crowd Signals to Agent Delivery](docs/images/pipeline.jpg)
 
-Your agent starts with **7 core tools** and activates skill packs on demand (~30 tools total across all packs). No restart required — new tools appear instantly.
+Your agent starts with **7 core tools** and activates skill packs on demand (~30 tools total across all packs). No restart required — new tools appear instantly via `tools/list_changed`.
 
 **Task Execution** — Trigger server-side AI agent execution (Amp, Claude Code, Codex, Gemini CLI) and poll progress via MCP. Calls `execute_task` to dispatch work and `get_execution_status` to track completion.
 
@@ -82,16 +83,19 @@ Your agent starts with **7 core tools** and activates skill packs on demand (~30
 
 | Pack | Tools | What it does |
 |------|:-----:|---|
-| **core** (always on) | 7 | .md knowledge base (save/recall/sync/publish), discovery, preferences |
+| **core** (always on) | 7 | .md knowledge base (save/recall/sync/publish), skill discovery, preferences |
 | **social-listening** | 7 | Search Reddit, TikTok, YouTube, Twitter, Instagram, Xiaohongshu |
 | **audience-analysis** | 4 | Opinion clustering, insight extraction, content enrichment |
 | **planning** | 13 | Tasks, execution plans, progress tracking, server-side agent execution |
+| **analysis** | 5 | Run full analyses, generate specs from results |
+| **crowd-intelligence** | 2 | Async crowd research with job polling |
 | **spec-delivery** | 3 | Browse and claim actionable specs from crowd feedback |
 | **sessions** | 3 | Multi-agent coordination |
-| **analysis** | 5 | Run full analyses, generate specs from results |
+| **setup** | 3 | Board management, project listing, migration |
 | **agent-network** | 2 | Register agents, discover capabilities |
 
-Plus 9 **workflow packs** (knowledge-base, competitive-analysis, content-strategy, market-research, ux-research, and more) that deliver expert methodology when activated.
+Plus 9 **workflow packs** that deliver expert methodology via SKILL.md when activated:
+- knowledge-base, competitive-analysis, content-strategy, content-creator, data-storytelling, heuristic-evaluation, market-research-reports, user-stories, ux-researcher
 
 Full tool reference: **[docs/TOOLS.md](docs/TOOLS.md)**
 
@@ -114,7 +118,7 @@ Every agent interaction can make the knowledge base better. The system works as 
 **How data flows:**
 
 1. **Save** — `save({ title, content, tags })` writes to Supabase and renders a `.md` file locally with YAML frontmatter
-2. **Recall** — `recall({ search })` queries Supabase via keyword matching. For structured browsing, agents read `~/.crowdlisten/context/INDEX.md` directly
+2. **Recall** — `recall({ search })` queries Supabase via semantic search (pgvector cosine similarity), with keyword fallback. For structured browsing, agents read `~/.crowdlisten/context/INDEX.md` directly
 3. **Sync** — `sync_context()` pulls all entries from cloud and rebuilds the entire local `.md` folder. Use after web uploads or switching machines. Pass `organize: true` to also detect near-duplicates (Jaccard similarity), identify topics with 3+ entries, and return a report telling the agent what to synthesize or prune
 4. **Publish** — `publish_context({ memory_id, team_id })` shares an entry with teammates. Their next `sync_context` pulls it into a `## Shared` section in their INDEX.md
 

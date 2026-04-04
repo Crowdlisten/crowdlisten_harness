@@ -1,6 +1,6 @@
 # CrowdListen
 
-> CrowdListen le da a los agentes de IA contexto colectivo: inteligencia analizada sobre lo que dicen los usuarios reales, lo que piensan los mercados y lo que quieren las comunidades. No es simple memoria de sesion. Analizado, agrupado, listo para tomar decisiones.
+> Dale a tu agente de IA contexto colectivo — inteligencia analizada sobre lo que dicen los usuarios reales, lo que piensan los mercados y lo que quieren las comunidades.
 
 ![CrowdListen — Give your agent evidence, not guesses](docs/images/hero.png)
 
@@ -8,30 +8,16 @@
 
 ## El Problema
 
-Los agentes de IA tienen memoria de sesion. No tienen contexto colectivo. Cada nueva sesion empieza desde cero, sin conocimiento de lo que tu audiencia esta diciendo en linea, sin senales analizadas de las plataformas donde los usuarios hablan de tu producto. Terminas re-explicando el contexto, copiando y pegando feedback de Reddit manualmente, y viendo a tu agente tomar decisiones sin el dato mas importante: lo que la gente real piensa.
+Los agentes de IA no saben lo que piensan tus usuarios. Cada sesion empieza desde cero — sin conocimiento de lo que la gente dice en Reddit, sin senales de comentarios de TikTok, sin sintesis de discusiones en foros. Terminas copiando y pegando feedback manualmente y viendo a tu agente tomar decisiones sin el dato mas importante: lo que la gente real piensa.
 
-CrowdListen cierra esta brecha con un ciclo de escucha, analisis y recuperacion:
+CrowdListen resuelve esto con un ciclo de cuatro pasos:
 
 1. **Escuchar** — buscar en Reddit, YouTube, TikTok, Twitter/X, Instagram, Xiaohongshu y foros
 2. **Analizar** — agrupar opiniones por tema, extraer puntos de dolor, sintetizar reportes multi-plataforma
-3. **Recordar** — guardar hallazgos analizados con embeddings semanticos, no publicaciones crudas
-4. **Recuperar** — cualquier agente obtiene contexto colectivo via lenguaje natural, entre sesiones y dispositivos
+3. **Guardar** — capturar hallazgos en una base de conocimiento .md que se acumula entre sesiones
+4. **Recuperar** — cualquier agente obtiene contexto via busqueda semantica o navega INDEX.md directamente
 
-```
-search_content("cursor vs claude code", platform: "reddit")
-→ 20 posts with engagement metrics
-
-cluster_opinions(content_ids)
-→ 4 opinion clusters: "Cursor better for refactoring" (38%), "Claude Code better for greenfield" (31%)
-
-save({ title: "Dev tool preferences Q2", content: <clusters>, tags: ["competitive-intel"] })
-→ Stored with semantic embedding
-
-recall({ search: "what do developers think about our product vs competitors?" })
-→ Returns analyzed clusters, ranked by semantic similarity
-```
-
-Cualquier agente — Claude Code, Cursor, Gemini CLI, Codex — puede usar `recall` despues. La inteligencia se acumula entre sesiones y entre agentes. Eso es contexto colectivo.
+Cualquier agente — Claude Code, Cursor, Gemini CLI, Codex — puede recuperar esto despues. La inteligencia se acumula entre sesiones y entre agentes. Eso es contexto colectivo.
 
 ## Primeros Pasos
 
@@ -41,10 +27,11 @@ Un comando. Tu navegador se abre, inicias sesion y tus agentes se configuran aut
 npx @crowdlisten/harness login
 ```
 
-Esto auto-configura MCP para **Claude Code, Cursor, Gemini CLI, Codex, Amp y OpenClaw**. Sin variables de entorno, sin editar JSON, sin API keys que gestionar. Reinicia tu agente despues de iniciar sesion.
+Auto-configura MCP para **Claude Code, Cursor, Gemini CLI, Codex, Amp y OpenClaw**. Sin variables de entorno, sin editar JSON, sin API keys que gestionar. Reinicia tu agente despues de iniciar sesion.
 
-<details>
-<summary><strong>Configuracion manual (stdio)</strong></summary>
+### Configuracion Manual
+
+Agrega a la configuracion MCP de tu agente:
 
 ```json
 {
@@ -56,10 +43,8 @@ Esto auto-configura MCP para **Claude Code, Cursor, Gemini CLI, Codex, Amp y Ope
   }
 }
 ```
-</details>
 
-<details>
-<summary><strong>Configuracion remota (Streamable HTTP)</strong></summary>
+Para acceso remoto, usa el transporte HTTP:
 
 ```json
 {
@@ -74,193 +59,109 @@ Esto auto-configura MCP para **Claude Code, Cursor, Gemini CLI, Codex, Amp y Ope
 }
 ```
 
-O auto-alojado: `npx @crowdlisten/harness serve` (inicia en el puerto 3848).
-</details>
-
-### Tu Agente Descubre Herramientas Progresivamente
-
-Al iniciar, tu agente ve **5 herramientas base** — nada mas. Activa paquetes de habilidades bajo demanda, y solo carga las herramientas que necesita:
-
-```mermaid
-graph LR
-    A["🔧 5 core tools"] -->|activate| B["📱 social-listening\n7 tools"]
-    A -->|activate| C["📊 audience-analysis\n6 tools"]
-    A -->|activate| D["📋 planning\n11 tools"]
-    A -->|activate| E["📦 spec-delivery\n3 tools"]
-    style A fill:#e0f2fe,stroke:#0284c7
-    style B fill:#f0fdf4,stroke:#16a34a
-    style C fill:#fef3c7,stroke:#d97706
-    style D fill:#f0fdf4,stroke:#16a34a
-    style E fill:#f0fdf4,stroke:#16a34a
-```
-
-No se necesita reiniciar — los paquetes se activan via `tools/list_changed` y las nuevas herramientas aparecen al instante.
-
 ## Que Puedes Hacer
 
-### Buscar en Plataformas Sociales
-
-Busca en Reddit, YouTube, TikTok, Twitter/X, Instagram, Xiaohongshu y Moltbook desde una sola herramienta. Obtiene publicaciones estructuradas con metricas de engagement, timestamps e informacion del autor — mismo formato sin importar la plataforma.
-
-```bash
-# Also works as a CLI
-npx crowdlisten search reddit "cursor vs claude code" --limit 5
-npx crowdlisten vision https://news.ycombinator.com
-```
-
-### Analizar Senales de Audiencia
-
-Agrupa opiniones, ejecuta analisis profundos (segmentos de audiencia, senales competitivas) y genera reportes de investigacion multi-plataforma desde una sola consulta.
-
-### Guardar y Recuperar Entre Sesiones
-
-Tu agente guarda contexto con `save` y lo recupera con `recall` usando busqueda semantica, no coincidencia de palabras clave. Pregunta "como deberiamos manejar la seguridad del login?" y encuentra tu nota anterior sobre tokens JWT — aunque las palabras no coincidan.
-
-Las memorias persisten en Supabase con embeddings pgvector, asi que te siguen entre agentes y dispositivos. Si la API de embeddings no esta disponible, recurre a busqueda por palabras clave, y a almacenamiento local si Supabase esta caido.
-
-### Planificar y Dar Seguimiento al Trabajo
-
-Tu agente llama a `list_tasks` para ver que esta disponible, `claim_task` para empezar a trabajar, y `create_plan` para redactar un enfoque con supuestos y riesgos. Las decisiones y aprendizajes se guardan via `save`, para que tareas futuras puedan usar `recall`.
-
-### Obtener Specs Accionables del Feedback Colectivo
-
-El pipeline completo: el feedback colectivo se analiza, se extraen hallazgos y se generan specs automaticamente. Tu agente de desarrollo navega specs listas para implementar — cada una con evidencia de feedback real de usuarios, criterios de aceptacion y un puntaje de confianza.
-
-### Extraer de Cualquier Sitio Web
-
-El modo vision toma una captura de pantalla de cualquier URL, la envia a un LLM (Claude, Gemini u OpenAI) y devuelve datos estructurados. Un foro sin API? Un sitio de noticias con comentarios detras de un muro de pago? Solo apunta `extract_url` hacia el.
+| Capacidad | Que hace | Como funciona |
+|-----------|----------|---------------|
+| **Buscar en plataformas sociales** | Buscar en Reddit, YouTube, TikTok, Twitter/X, Instagram, Xiaohongshu desde una herramienta | Devuelve publicaciones estructuradas con metricas de engagement, timestamps e info del autor — mismo formato sin importar la plataforma |
+| **Analizar senales de audiencia** | Agrupar opiniones, extraer puntos de dolor, generar reportes multi-plataforma | IA agrupa comentarios por tema, puntua sentimiento, identifica senales competitivas |
+| **Guardar y recuperar entre sesiones** | Base de conocimiento .md que se acumula entre agentes y dispositivos | Tu agente guarda con `save`, recupera con `recall`, navega `~/.crowdlisten/context/INDEX.md`, organiza con `sync_context({ organize: true })` |
+| **Planificar y dar seguimiento** | Tareas, planes de ejecucion, seguimiento de progreso, ejecucion en servidor | Tu agente reclama tareas, redacta planes con supuestos y riesgos, registra progreso, dispara ejecucion y consulta estado |
+| **Ejecutar analisis completos** | Analisis colectivo de extremo a extremo con resultados en streaming | `run_analysis` dispara el pipeline completo en el backend; `continue_analysis` para seguimiento |
+| **Obtener specs del feedback colectivo** | Convertir inteligencia colectiva en specs implementables | Las specs incluyen citas de evidencia, criterios de aceptacion y puntaje de confianza |
+| **Extraer de cualquier sitio web** | Capturar pantalla de cualquier URL y obtener datos estructurados | El modo vision envia capturas a un LLM — funciona en foros, sitios de pago, cualquier URL |
 
 ## Como Funciona
 
 ![CrowdListen Pipeline — Raw Crowd Signals to Agent Delivery](docs/images/pipeline.jpg)
 
-```mermaid
-graph LR
-    A["🌐 Raw Crowd Signals\nReddit, TikTok,\nYouTube, Twitter"] --> B["⚙️ Analysis Engine\nclustering, sentiment,\nsegmentation"]
-    B --> C["💡 Structured Insights\npain points, feature\nrequests, signals"]
-    C --> D["📄 Spec Generation\nactionable specs +\nconfidence scores"]
-    D --> E["🤖 Agent Delivery\nvia MCP to any\ncoding agent"]
-    style A fill:#fee2e2,stroke:#dc2626
-    style B fill:#e0f2fe,stroke:#0284c7
-    style C fill:#f0fdf4,stroke:#16a34a
-    style D fill:#fef3c7,stroke:#d97706
-    style E fill:#ede9fe,stroke:#7c3aed
-```
+Tu agente comienza con **7 herramientas base** y activa paquetes de habilidades bajo demanda (~30 herramientas en total). Sin reinicio — las nuevas herramientas aparecen al instante via `tools/list_changed`.
 
-Cada paso alimenta al siguiente. Para cuando un agente de desarrollo llama a `get_specs`, la spec ya trae citas de evidencia de feedback real de usuarios, un puntaje de confianza y criterios de aceptacion derivados de los hallazgos.
+**Ejecucion de Tareas** — Dispara ejecucion de agentes IA en servidor (Amp, Claude Code, Codex, Gemini CLI) y consulta progreso via MCP. Llama `execute_task` para asignar trabajo y `get_execution_status` para rastrear completamiento.
 
-## Paquetes de Habilidades
-
-Tu agente comienza con 5 herramientas base y activa paquetes bajo demanda:
+### Paquetes de Habilidades
 
 | Paquete | Herramientas | Que hace |
 |---------|:------------:|----------|
-| **core** (siempre activo) | 5 | Memoria semantica, descubrimiento, preferencias |
-| **social-listening** | 7 | Buscar en Reddit, TikTok, YouTube, Twitter, Instagram, Xiaohongshu, Moltbook |
-| **audience-analysis** | 6 | Agrupacion de opiniones, analisis profundo, extraccion de hallazgos, sintesis de investigacion |
-| **planning** | 11 | Tareas, planes de ejecucion, seguimiento de progreso |
+| **core** (siempre activo) | 7 | Base de conocimiento .md (save/recall/sync/publish), descubrimiento de habilidades, preferencias |
+| **social-listening** | 7 | Buscar en Reddit, TikTok, YouTube, Twitter, Instagram, Xiaohongshu |
+| **audience-analysis** | 4 | Agrupacion de opiniones, extraccion de insights, enriquecimiento de contenido |
+| **planning** | 13 | Tareas, planes de ejecucion, seguimiento de progreso, ejecucion de agentes en servidor |
+| **analysis** | 5 | Ejecutar analisis completos, generar specs de resultados |
+| **crowd-intelligence** | 2 | Investigacion colectiva asincrona con consulta de estado |
 | **spec-delivery** | 3 | Navegar y reclamar specs accionables del feedback colectivo |
 | **sessions** | 3 | Coordinacion multi-agente |
-| **analysis** | 5 | Ejecutar analisis completos, generar specs de resultados |
+| **setup** | 3 | Gestion de tablero, lista de proyectos, migracion |
 | **agent-network** | 2 | Registrar agentes, descubrir capacidades |
 
-Ademas, 8 **paquetes de flujo de trabajo** (competitive-analysis, content-strategy, market-research-reports, ux-researcher y mas) que entregan instrucciones metodologicas de expertos al activarse.
+Ademas, 9 **paquetes de flujo de trabajo** que entregan metodologia experta via SKILL.md al activarse:
+- knowledge-base, competitive-analysis, content-strategy, content-creator, data-storytelling, heuristic-evaluation, market-research-reports, user-stories, ux-researcher
 
-Referencia completa de herramientas con parametros: **[docs/TOOLS.md](docs/TOOLS.md)**
+Referencia completa de herramientas: **[docs/TOOLS.md](docs/TOOLS.md)**
 
-## Plataformas
+### Base de Conocimiento
 
-**Funciona de inmediato** — Reddit
+Cada interaccion del agente puede mejorar la base de conocimiento. El sistema funciona como un ciclo de interes compuesto:
 
-**Necesita Playwright** (`npx playwright install chromium`) — TikTok, Instagram, Xiaohongshu
+```
+ save()          Supabase              ~/.crowdlisten/context/
+───────→  tabla memories  ──render──→  ├── INDEX.md
+                                       ├── entries/a1b2c3d4.md
+ recall()        ↑                     └── topics/auth.md
+←────────────────┘
+                                       sync_context({ organize: true })
+ sync_context()                        detecta duplicados,
+ reconstruye  ←──── pull completo ──── agrupa por tema,
+ cache .md local                       sugiere sintesis
+```
 
-**Necesita credenciales en `.env`:**
-- Twitter/X — `TWITTER_USERNAME` + `TWITTER_PASSWORD`
-- YouTube — `YOUTUBE_API_KEY`
-- Moltbook — `MOLTBOOK_API_KEY`
+**Flujo de datos:**
 
-**Modo vision** — necesita cualquiera de: `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` u `OPENAI_API_KEY`
+1. **Guardar** — `save({ title, content, tags })` escribe en Supabase y renderiza un archivo `.md` local con frontmatter YAML
+2. **Recuperar** — `recall({ search })` consulta Supabase via busqueda semantica (similitud coseno pgvector), con fallback a palabras clave. Para navegacion estructurada, los agentes leen `~/.crowdlisten/context/INDEX.md` directamente
+3. **Sincronizar** — `sync_context()` extrae todas las entradas de la nube y reconstruye toda la carpeta `.md` local. Usar despues de subir desde web o cambiar de maquina. Pasar `organize: true` para detectar casi-duplicados (similitud Jaccard), identificar temas con 3+ entradas, y devolver un reporte indicando que sintetizar o podar
+4. **Publicar** — `publish_context({ memory_id, team_id })` comparte una entrada con companeros. Su proximo `sync_context` la incluye en la seccion `## Shared` de su INDEX.md
 
-**Herramientas de analisis** — requiere iniciar sesion (`npx @crowdlisten/harness login`)
+**El efecto compuesto:** Despues de cada tarea de analisis o investigacion, el agente guarda 2-3 puntos clave. Con el tiempo, `sync_context({ organize: true })` los agrupa en temas. El agente sintetiza temas en resumenes destilados. El siguiente agente empieza con un INDEX.md rico en lugar de una pagina en blanco.
+
+Supabase es la fuente de verdad. La carpeta `.md` local es un cache renderizado de solo lectura — sin conflictos de sincronizacion, sin problemas de merge.
+
+### Plataformas
+
+| Plataforma | Configuracion | Notas |
+|------------|---------------|-------|
+| Reddit | Ninguna | Funciona inmediatamente |
+| TikTok, Instagram, Xiaohongshu | `npx playwright install chromium` | Extraccion basada en navegador |
+| Twitter/X | `TWITTER_USERNAME` + `TWITTER_PASSWORD` en `.env` | Basado en credenciales |
+| YouTube | `YOUTUBE_API_KEY` en `.env` | API key requerida |
+| Modo vision (cualquier URL) | Cualquiera de: `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, u `OPENAI_API_KEY` | Capturas + extraccion LLM |
+
+### Agentes Soportados
+
+**Auto-configurados al iniciar sesion:** Claude Code, Cursor, Gemini CLI, Codex, Amp, OpenClaw
+
+**Tambien funciona con (config manual):** Copilot, Droid, Qwen Code, OpenCode
+
+## CLI
+
+```bash
+npx @crowdlisten/harness login          # Iniciar sesion + auto-configurar agentes
+npx @crowdlisten/harness setup          # Re-ejecutar auto-configuracion
+npx @crowdlisten/harness serve          # Iniciar servidor HTTP en :3848
+
+npx crowdlisten search reddit "AI agents" --limit 20
+npx crowdlisten vision https://news.ycombinator.com --limit 10
+npx crowdlisten trending reddit --limit 10
+```
 
 ## Privacidad
 
 - PII redactada localmente antes de llamadas a LLM
-- Memorias almacenadas en Supabase con seguridad a nivel de fila (los usuarios solo pueden acceder a sus propios datos)
-- Respaldo local cuando Supabase no esta disponible
+- Memorias almacenadas con seguridad a nivel de fila — usuarios solo pueden acceder a sus propios datos
+- Fallback local cuando la nube no esta disponible
 - Tus propias API keys para extraccion via LLM
-- Ningun dato se sincroniza sin accion explicita del usuario
-- Codigo abierto MIT e inspeccionable
-
----
-
-<details>
-<summary><strong>Comandos CLI</strong></summary>
-
-```bash
-npx @crowdlisten/harness login          # Sign in + auto-configure agents
-npx @crowdlisten/harness setup          # Re-run auto-configure
-npx @crowdlisten/harness logout         # Clear credentials
-npx @crowdlisten/harness whoami         # Check current user
-npx @crowdlisten/harness serve          # Start HTTP server on :3848
-npx @crowdlisten/harness openapi        # Print OpenAPI 3.0 spec to stdout
-npx @crowdlisten/harness context        # Launch skill pack dashboard
-npx @crowdlisten/harness context <file> # Process file through context pipeline
-npx @crowdlisten/harness setup-context  # Configure LLM provider for extraction
-
-# Social listening CLI
-npx crowdlisten search reddit "AI agents" --limit 20
-npx crowdlisten comments youtube dQw4w9WgXcQ --limit 100
-npx crowdlisten vision https://news.ycombinator.com --limit 10
-npx crowdlisten trending reddit --limit 10
-npx crowdlisten status
-npx crowdlisten health
-```
-</details>
-
-<details>
-<summary><strong>Transportes</strong></summary>
-
-| Transporte | Caso de uso | Comando |
-|------------|-------------|---------|
-| **stdio** (predeterminado) | Integracion local con agente | `npx @crowdlisten/harness` |
-| **Streamable HTTP** | Acceso remoto/nube para agentes | `npx @crowdlisten/harness serve` |
-| **OpenAPI/REST** | Cualquier cliente HTTP | `curl localhost:3848/openapi.json` |
-
-El transporte HTTP corre en el puerto 3848 con autenticacion via `Authorization: Bearer <token>` (JWT de Supabase o API key). Health check en `GET /health`, spec OpenAPI en `GET /openapi.json`.
-</details>
-
-<details>
-<summary><strong>Configuracion</strong></summary>
-
-| Variable | Predeterminado | Descripcion |
-|----------|----------------|-------------|
-| `CROWDLISTEN_URL` | `https://crowdlisten.com` | URL del proyecto Supabase |
-| `CROWDLISTEN_ANON_KEY` | Incluida | Clave anonima de Supabase |
-| `CROWDLISTEN_APP_URL` | `https://crowdlisten.com` | URL de la app web (redirecciones de login) |
-| `CROWDLISTEN_AGENT_URL` | `https://agent.crowdlisten.com` | URL del backend del agente |
-| `CROWDLISTEN_API_KEY` | Ninguna | Token de autenticacion (se configura automaticamente al iniciar sesion) |
-</details>
-
-<details>
-<summary><strong>Extraccion de Contexto</strong></summary>
-
-Sube transcripciones de chat, obtiene bloques de contexto reutilizables y recomendaciones de habilidades. El PII se redacta localmente antes de que algo llegue a un LLM.
-
-**Formatos soportados:** `.json` (exportaciones de ChatGPT/Claude), `.zip`, `.txt`, `.md`, `.pdf`
-
-**Proveedores LLM:** OpenAI (gpt-4o-mini) o Anthropic (Claude Sonnet)
-</details>
-
-<details>
-<summary><strong>Agentes Soportados</strong></summary>
-
-**Auto-configurados al iniciar sesion:** Claude Code, Cursor, Gemini CLI, Codex, Amp, OpenClaw
-
-**Tambien funciona con (configuracion manual):** Copilot, Droid, Qwen Code, OpenCode
-
-CrowdListen auto-detecta cual agente esta corriendo via variables de entorno al llamar `claim_task`, `start_session` o `start_spec`.
-</details>
+- Ningun dato se sincroniza sin accion explicita
+- MIT open-source e inspeccionable
 
 ## Desarrollo
 
