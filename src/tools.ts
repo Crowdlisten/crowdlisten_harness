@@ -799,6 +799,150 @@ export const TOOLS = [
     },
   },
   // log_learning, search_learnings → consolidated into save/recall
+
+  // ── Wiki Tools ─────────────────────────────────────────────────────────────
+  {
+    name: "wiki_list",
+    description:
+      "List all wiki pages for a project. Returns paths, titles, categories, excerpts, and metadata. Use to browse the project knowledge base.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        project_id: {
+          type: "string",
+          description: "Project UUID (required)",
+        },
+        category: {
+          type: "string",
+          description:
+            "Filter by category (e.g. 'topics', 'entities', 'syntheses', 'document', 'prd', 'research')",
+        },
+      },
+      required: ["project_id"],
+    },
+  },
+  {
+    name: "wiki_read",
+    description:
+      "Read full markdown content of a wiki page by path. Use after wiki_list to drill into a specific page.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        project_id: {
+          type: "string",
+          description: "Project UUID (required)",
+        },
+        path: {
+          type: "string",
+          description: "Wiki page path (e.g. 'index', 'topics/pricing-sentiment')",
+        },
+      },
+      required: ["project_id", "path"],
+    },
+  },
+  {
+    name: "wiki_write",
+    description:
+      "Create or update a wiki page. Use mode='replace' to overwrite, mode='append' to add content to an existing page.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        project_id: {
+          type: "string",
+          description: "Project UUID (required)",
+        },
+        path: {
+          type: "string",
+          description: "Wiki page path (e.g. 'topics/new-topic')",
+        },
+        title: {
+          type: "string",
+          description: "Page title",
+        },
+        content: {
+          type: "string",
+          description: "Markdown content",
+        },
+        category: {
+          type: "string",
+          description:
+            "Page category: 'topics', 'entities', 'syntheses', 'document', 'prd', 'research', 'log'",
+        },
+        mode: {
+          type: "string",
+          enum: ["replace", "append"],
+          description: "Write mode — 'replace' (default) or 'append'",
+        },
+      },
+      required: ["project_id", "path", "title", "content", "category"],
+    },
+  },
+  {
+    name: "wiki_search",
+    description:
+      "Search wiki pages by keyword. Searches both title and content using ILIKE. Returns excerpts.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        project_id: {
+          type: "string",
+          description: "Project UUID (required)",
+        },
+        query: {
+          type: "string",
+          description: "Search query",
+        },
+        category: {
+          type: "string",
+          description: "Optional category filter",
+        },
+        limit: {
+          type: "number",
+          description: "Max results (default 10)",
+        },
+      },
+      required: ["project_id", "query"],
+    },
+  },
+  {
+    name: "wiki_ingest",
+    description:
+      "Trigger wiki ingest for a completed analysis. The LLM reads the analysis and updates/creates wiki pages automatically.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        project_id: {
+          type: "string",
+          description: "Project UUID (required)",
+        },
+        analysis_id: {
+          type: "string",
+          description: "Analysis UUID to ingest",
+        },
+      },
+      required: ["project_id", "analysis_id"],
+    },
+  },
+  {
+    name: "wiki_log",
+    description:
+      "Read recent entries from the wiki log page. Shows what changed and when.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        project_id: {
+          type: "string",
+          description: "Project UUID (required)",
+        },
+        limit: {
+          type: "number",
+          description: "Number of recent log entries to return (default 20)",
+        },
+      },
+      required: ["project_id"],
+    },
+  },
+
   ...AGENT_TOOLS,
 ];
 
@@ -1790,21 +1934,39 @@ export async function handleTool(
           // Non-blocking — local render failure doesn't affect save
         }
 
-        // Side effect: dual-write to project_insights for frontend visibility
-        const knowledgeTags = ["decision", "pattern", "preference", "learning", "principle"];
-        if (projectId && tags.some(t => knowledgeTags.includes(t))) {
+        // Side effect: write to wiki_pages for project knowledge base
+        if (projectId) {
           try {
-            await sb.from("project_insights").insert({
-              project_id: projectId,
-              user_id: userId,
-              title,
-              content,
-              source: "mcp_save",
-              source_agent: sourceAgent,
-              category: tags.find(t => knowledgeTags.includes(t)) || "insight",
-            });
+            const wikiPath = `documents/${slugify(title)}`;
+            const wordCount = content.split(/\s+/).filter(Boolean).length;
+            // Upsert: create or update based on path
+            const { data: existingPage } = await sb
+              .from("wiki_pages")
+              .select("id")
+              .eq("project_id", projectId)
+              .eq("path", wikiPath)
+              .single();
+
+            if (existingPage) {
+              await sb.from("wiki_pages").update({
+                content,
+                word_count: wordCount,
+                updated_at: new Date().toISOString(),
+              }).eq("id", existingPage.id);
+            } else {
+              await sb.from("wiki_pages").insert({
+                project_id: projectId,
+                user_id: userId,
+                path: wikiPath,
+                title,
+                content,
+                category: "document",
+                word_count: wordCount,
+                is_auto: false,
+              });
+            }
           } catch {
-            // Non-blocking
+            // Non-blocking — wiki write failure doesn't affect save
           }
         }
       } catch (err: any) {
@@ -1828,6 +1990,65 @@ export async function handleTool(
       const projectId = args.project_id as string | undefined;
       const limit = (args.limit as number) || 20;
 
+      // When project-scoped: search wiki_pages instead of memories
+      if (projectId) {
+        try {
+          const searchTerm = search?.slice(0, 200);
+          const results: any[] = [];
+
+          if (searchTerm) {
+            // Title matches first
+            const { data: titleData } = await sb
+              .from("wiki_pages")
+              .select("id, path, title, category, content, updated_at")
+              .eq("project_id", projectId)
+              .ilike("title", `%${searchTerm}%`)
+              .order("updated_at", { ascending: false })
+              .limit(limit);
+
+            const titleIds = new Set((titleData || []).map((p: any) => p.id));
+            results.push(...(titleData || []));
+
+            // Content matches (exclude title matches)
+            const { data: contentData } = await sb
+              .from("wiki_pages")
+              .select("id, path, title, category, content, updated_at")
+              .eq("project_id", projectId)
+              .ilike("content", `%${searchTerm}%`)
+              .order("updated_at", { ascending: false })
+              .limit(limit);
+
+            for (const p of contentData || []) {
+              if (!titleIds.has(p.id)) results.push(p);
+            }
+          } else {
+            // No search term — return recent pages
+            const { data } = await sb
+              .from("wiki_pages")
+              .select("id, path, title, category, content, updated_at")
+              .eq("project_id", projectId)
+              .order("updated_at", { ascending: false })
+              .limit(limit);
+            results.push(...(data || []));
+          }
+
+          // Truncate content for recall
+          for (const p of results) {
+            if (p.content?.length > 500) p.content = p.content.slice(0, 500) + "...";
+          }
+
+          return json({
+            memories: results.slice(0, limit),
+            count: Math.min(results.length, limit),
+            search_mode: "wiki",
+            source: "wiki_pages",
+          });
+        } catch {
+          // Fall through to memories search
+        }
+      }
+
+      // Global (no project_id) or wiki fallback: search memories table
       try {
         let query = sb
           .from("memories")
@@ -1877,6 +2098,49 @@ export async function handleTool(
           renderAll(memories);
         }
 
+        // Also sync wiki pages per-project
+        let wikiStats: { projects: number; pages: number } = { projects: 0, pages: 0 };
+        if (!(organize && dryRun)) {
+          try {
+            // Get distinct project_ids that have wiki pages
+            const { data: projectRows } = await sb
+              .from("wiki_pages")
+              .select("project_id")
+              .eq("user_id", userId);
+
+            const projectIds = [...new Set((projectRows || []).map((r: any) => r.project_id))];
+
+            if (projectIds.length > 0) {
+              // Fetch project names for directory slugs
+              const { data: projects } = await sb
+                .from("projects")
+                .select("id, name")
+                .in("id", projectIds);
+
+              const projectMap = new Map((projects || []).map((p: any) => [p.id, p.name]));
+              const { renderWikiPages } = await import("./context/md-store.js");
+
+              for (const pid of projectIds) {
+                const { data: pages } = await sb
+                  .from("wiki_pages")
+                  .select("path, title, category, content, source_count, word_count, updated_at")
+                  .eq("project_id", pid)
+                  .order("updated_at", { ascending: false });
+
+                if (pages && pages.length > 0) {
+                  const projectName = projectMap.get(pid) || pid;
+                  const slug = projectName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+                  renderWikiPages(slug, pages);
+                  wikiStats.projects++;
+                  wikiStats.pages += pages.length;
+                }
+              }
+            }
+          } catch {
+            // Non-blocking — wiki sync is best-effort
+          }
+        }
+
         // Simple sync — just pull and rebuild
         if (!organize) {
           const { readMeta } = await import("./context/md-store.js");
@@ -1884,7 +2148,10 @@ export async function handleTool(
           return json({
             synced: true,
             entry_count: memories.length,
+            wiki_projects: wikiStats.projects,
+            wiki_pages: wikiStats.pages,
             index_path: "~/.crowdlisten/context/INDEX.md",
+            wiki_path: wikiStats.projects > 0 ? "~/.crowdlisten/context/projects/" : undefined,
             meta,
           });
         }
@@ -2209,6 +2476,245 @@ export async function handleTool(
     }
 
     // log_learning, search_learnings → removed (consolidated into save/recall)
+
+    // ── Wiki Tools ─────────────────────────────────────────────────────────
+    case "wiki_list": {
+      const projectId = args.project_id as string;
+      const category = args.category as string | undefined;
+
+      let query = sb
+        .from("wiki_pages")
+        .select("id, path, title, category, source_count, word_count, is_auto, updated_at, content")
+        .eq("project_id", projectId)
+        .order("updated_at", { ascending: false });
+
+      if (category) query = query.eq("category", category);
+
+      const { data, error } = await query;
+      if (error) throw new Error(error.message);
+
+      // Truncate content to excerpt
+      const pages = (data || []).map((p: any) => ({
+        ...p,
+        content: p.content?.length > 200 ? p.content.slice(0, 200) + "..." : p.content,
+      }));
+
+      return json({ pages, count: pages.length });
+    }
+
+    case "wiki_read": {
+      const projectId = args.project_id as string;
+      const pagePath = args.path as string;
+
+      const { data, error } = await sb
+        .from("wiki_pages")
+        .select("*")
+        .eq("project_id", projectId)
+        .eq("path", pagePath)
+        .single();
+
+      if (error) throw new Error(`Wiki page not found: ${pagePath}`);
+      return json({ page: data });
+    }
+
+    case "wiki_write": {
+      const projectId = args.project_id as string;
+      const pagePath = args.path as string;
+      const title = args.title as string;
+      const content = args.content as string;
+      const category = args.category as string;
+      const mode = (args.mode as string) || "replace";
+
+      const wordCount = content.split(/\s+/).filter(Boolean).length;
+
+      // Check if page exists
+      const { data: existing } = await sb
+        .from("wiki_pages")
+        .select("id, content")
+        .eq("project_id", projectId)
+        .eq("path", pagePath)
+        .single();
+
+      if (existing) {
+        // Update existing page
+        const newContent = mode === "append"
+          ? existing.content + "\n\n" + content
+          : content;
+        const newWordCount = newContent.split(/\s+/).filter(Boolean).length;
+
+        const { error } = await sb
+          .from("wiki_pages")
+          .update({
+            title,
+            content: newContent,
+            category,
+            word_count: newWordCount,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existing.id);
+
+        if (error) throw new Error(error.message);
+        return json({ action: "updated", path: pagePath, mode, word_count: newWordCount });
+      } else {
+        // Create new page
+        const { error } = await sb
+          .from("wiki_pages")
+          .insert({
+            project_id: projectId,
+            user_id: userId,
+            path: pagePath,
+            title,
+            content,
+            category,
+            word_count: wordCount,
+            is_auto: false,
+          });
+
+        if (error) throw new Error(error.message);
+        return json({ action: "created", path: pagePath, word_count: wordCount });
+      }
+    }
+
+    case "wiki_search": {
+      const projectId = args.project_id as string;
+      const query = args.query as string;
+      const category = args.category as string | undefined;
+      const limit = (args.limit as number) || 10;
+      const searchTerm = query.slice(0, 200);
+
+      // Title matches first
+      let titleQ = sb
+        .from("wiki_pages")
+        .select("id, path, title, category, content, source_count, word_count, updated_at")
+        .eq("project_id", projectId)
+        .ilike("title", `%${searchTerm}%`)
+        .order("updated_at", { ascending: false })
+        .limit(limit);
+
+      if (category) titleQ = titleQ.eq("category", category);
+      const { data: titleData } = await titleQ;
+      const titleIds = new Set((titleData || []).map((p: any) => p.id));
+
+      // Content matches (exclude title matches)
+      let contentQ = sb
+        .from("wiki_pages")
+        .select("id, path, title, category, content, source_count, word_count, updated_at")
+        .eq("project_id", projectId)
+        .ilike("content", `%${searchTerm}%`)
+        .order("updated_at", { ascending: false })
+        .limit(limit);
+
+      if (category) contentQ = contentQ.eq("category", category);
+      const { data: contentData } = await contentQ;
+
+      // Merge: title matches first, then content-only
+      const pages: any[] = [...(titleData || [])];
+      for (const p of contentData || []) {
+        if (!titleIds.has(p.id)) pages.push(p);
+      }
+
+      // Truncate content to excerpt
+      for (const p of pages) {
+        if (p.content?.length > 300) {
+          p.content = p.content.slice(0, 300) + "...";
+        }
+      }
+
+      return json({ pages: pages.slice(0, limit), total: pages.length });
+    }
+
+    case "wiki_ingest": {
+      const projectId = args.project_id as string;
+      const analysisId = args.analysis_id as string;
+
+      // Delegate to agent endpoint
+      try {
+        const { requireApiKey, agentPost } = await import("./agent-proxy.js");
+        const agentApiKey = requireApiKey();
+        const result = await agentPost(
+          "/agent/v1/wiki/ingest",
+          { project_id: projectId, analysis_id: analysisId },
+          agentApiKey
+        );
+        return json(result);
+      } catch (err: any) {
+        return json({ error: `Wiki ingest failed: ${err?.message || err}` });
+      }
+    }
+
+    case "wiki_log": {
+      const projectId = args.project_id as string;
+      const limit = (args.limit as number) || 20;
+
+      // Read the log page
+      const { data, error } = await sb
+        .from("wiki_pages")
+        .select("content, updated_at")
+        .eq("project_id", projectId)
+        .eq("path", "log")
+        .single();
+
+      if (error || !data) {
+        return json({ entries: [], message: "No log page found for this project." });
+      }
+
+      // Parse log entries (each starts with "## " or "- ")
+      const lines = data.content.split("\n");
+      const entries: string[] = [];
+      let current = "";
+
+      for (const line of lines) {
+        if ((line.startsWith("## ") || line.startsWith("- ")) && current) {
+          entries.push(current.trim());
+          current = line;
+        } else {
+          current += (current ? "\n" : "") + line;
+        }
+      }
+      if (current.trim()) entries.push(current.trim());
+
+      return json({
+        entries: entries.slice(0, limit),
+        total: entries.length,
+        updated_at: data.updated_at,
+      });
+    }
+
+    case "crowd_research": {
+      // Enrich with wiki context when project is available, then delegate
+      if (!args.context) {
+        try {
+          // Try to find a recent project to pull wiki context from
+          const { data: recentProject } = await sb
+            .from("projects")
+            .select("id")
+            .eq("user_id", userId)
+            .order("updated_at", { ascending: false })
+            .limit(1)
+            .single();
+
+          if (recentProject) {
+            const searchTerm = (args.query as string)?.slice(0, 200);
+            const { data: wikiPages } = await sb
+              .from("wiki_pages")
+              .select("title, content, category")
+              .eq("project_id", recentProject.id)
+              .ilike("content", `%${searchTerm}%`)
+              .order("updated_at", { ascending: false })
+              .limit(5);
+
+            if (wikiPages && wikiPages.length > 0) {
+              args.context = wikiPages
+                .map((p: any) => `[${p.category}] ${p.title}\n${p.content?.slice(0, 500)}`)
+                .join("\n---\n");
+            }
+          }
+        } catch {
+          // Graceful degradation — run without wiki context
+        }
+      }
+      return handleAgentTool(name, args);
+    }
 
     default: {
       // Delegate to agent-proxied tools

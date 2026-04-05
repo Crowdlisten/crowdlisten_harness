@@ -65,7 +65,7 @@ export function initializeRegistry(skillsDir: string): void {
     id: "core",
     name: "Core",
     description: "Discovery + memory — list skill packs, activate packs, save/recall/sync context as .md knowledge base",
-    toolNames: ["list_skill_packs", "activate_skill_pack", "save", "recall", "sync_context", "publish_context", "set_preferences"],
+    toolNames: ["list_skill_packs", "activate_skill_pack", "save", "recall", "sync_context", "publish_context", "set_preferences", "wiki_list", "wiki_read", "wiki_write", "wiki_search", "wiki_ingest", "wiki_log"],
   });
 
   // Planning — task management

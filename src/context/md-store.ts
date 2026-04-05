@@ -286,6 +286,81 @@ export function searchLocalIndex(
   return results;
 }
 
+// ─── Wiki Page Rendering ─────────────────────────────────────────────────
+
+const PROJECTS_DIR = path.join(BASE_DIR, "projects");
+
+export interface WikiPage {
+  path: string;
+  title: string;
+  category: string;
+  content: string;
+  source_count?: number;
+  word_count?: number;
+  updated_at?: string;
+}
+
+/**
+ * Render wiki pages as an organized .md tree under
+ * ~/.crowdlisten/context/projects/{project-slug}/
+ *
+ * Structure:
+ *   projects/{slug}/
+ *   ├── index.md
+ *   ├── overview.md
+ *   ├── topics/
+ *   │   ├── pricing-sentiment.md
+ *   │   └── feature-requests.md
+ *   ├── entities/
+ *   │   └── competitor-x.md
+ *   └── docs/
+ *       └── product-requirements.md
+ */
+export function renderWikiPages(
+  projectSlug: string,
+  pages: WikiPage[]
+): { dir: string; fileCount: number } {
+  const projectDir = path.join(PROJECTS_DIR, projectSlug);
+
+  // Clear existing project wiki files
+  if (fs.existsSync(projectDir)) {
+    fs.rmSync(projectDir, { recursive: true, force: true });
+  }
+  fs.mkdirSync(projectDir, { recursive: true });
+
+  let fileCount = 0;
+
+  for (const page of pages) {
+    // Build file path from page.path (e.g. "topics/pricing-sentiment" → "topics/pricing-sentiment.md")
+    const pagePath = page.path.endsWith(".md") ? page.path : `${page.path}.md`;
+    const fullPath = path.join(projectDir, pagePath);
+
+    // Ensure parent directory exists
+    const dir = path.dirname(fullPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+
+    // Write markdown with frontmatter
+    const frontmatter = [
+      "---",
+      `title: ${page.title}`,
+      `category: ${page.category}`,
+      page.source_count ? `source_count: ${page.source_count}` : null,
+      page.word_count ? `word_count: ${page.word_count}` : null,
+      page.updated_at ? `updated_at: ${page.updated_at}` : null,
+      "---",
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    fs.writeFileSync(fullPath, `${frontmatter}\n\n${page.content}\n`, "utf-8");
+    fileCount++;
+  }
+
+  return { dir: projectDir, fileCount };
+}
+
 // ─── Meta ───────────────────────────────────────────────────────────────────
 
 export function readMeta(): MetaData | null {
