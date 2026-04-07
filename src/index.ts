@@ -271,6 +271,19 @@ if (command === "login") {
   }
 } else if (command === "setup-context") {
   runSetupContext().then(() => process.exit(0));
+} else if (command === "watch" || command === "sync") {
+  const targetDir = process.argv[3];
+  if (!targetDir) {
+    console.error(`Usage: npx @crowdlisten/harness ${command} <folder>`);
+    console.error(`Example: npx @crowdlisten/harness ${command} ~/knowledge`);
+    process.exit(1);
+  }
+  import("./watch.js").then(({ runWatchSync }) => {
+    runWatchSync(targetDir, { watch: command === "watch" }).catch((err: any) => {
+      console.error(`Error: ${err?.message || err}`);
+      process.exit(1);
+    });
+  });
 } else if (command === "serve") {
   startHttpServer();
 } else if (command === "openapi") {
@@ -284,6 +297,8 @@ COMMANDS:
   setup          Re-run auto-configure for agent MCP configs
   logout         Clear saved credentials
   whoami         Show current user
+  watch <folder> Auto-sync a local folder to your knowledge base (Dropbox-style)
+  sync <folder>  One-shot sync a local folder to your knowledge base
   serve          Start Streamable HTTP transport (port 3848)
   openapi        Print OpenAPI 3.0 spec to stdout
   context        Launch skill pack dashboard (port 3847)
