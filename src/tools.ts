@@ -11,6 +11,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import { execSync } from "child_process";
+import { createHash } from "crypto";
 import { runPipeline } from "./context/pipeline.js";
 import { getBlocks, addBlocks } from "./context/store.js";
 import { matchSkills, discoverSkills, searchSkills, getSkillCategories, getFullCatalog } from "./context/matcher.js";
@@ -293,6 +294,34 @@ export const TOOLS = [
       required: ["title", "content"],
     },
   },
+  {
+    name: "ingest_folder",
+    description:
+      "Bulk-import all files from a local folder into your context library. Deduplicates by absolute file path: skips unchanged files, updates modified ones. Reports new/updated/unchanged counts.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        path: {
+          type: "string",
+          description: "Absolute path to the folder to ingest",
+        },
+        extensions: {
+          type: "array",
+          items: { type: "string" },
+          description: "File extensions to include (default ['.md', '.txt'])",
+        },
+        recursive: {
+          type: "boolean",
+          description: "Recurse into subdirectories (default false)",
+        },
+        project_id: {
+          type: "string",
+          description: "Optional project scope",
+        },
+      },
+      required: ["path"],
+    },
+  },
 
   // ═══════════════════════════════════════════════════════════════════════════
   // PLANNING (6 tools — activated via pack)
@@ -363,60 +392,54 @@ export const TOOLS = [
   },
   // execute_task + get_execution_status come from ...AGENT_TOOLS below
 
-  // ── Wiki Tools ─────────────────────────────────────────────────────────────
+  // ── Wiki Tools (backed by unified `pages` table) ──────────────────────────
   {
     name: "wiki_list",
     description:
-      "List all wiki pages for a project. Returns paths, titles, categories, excerpts, and metadata. Use to browse the project knowledge base.",
+      "List pages. With project_id, lists project pages. Without, lists all your pages. Returns paths, titles, excerpts.",
     inputSchema: {
       type: "object" as const,
       properties: {
         project_id: {
           type: "string",
-          description: "Project UUID (required)",
+          description: "Optional project UUID to filter pages",
         },
-        category: {
+        path_prefix: {
           type: "string",
-          description:
-            "Filter by category (e.g. 'topics', 'entities', 'syntheses', 'document', 'prd', 'research')",
+          description: "Filter by path prefix (e.g. 'notes/', 'documents/')",
         },
       },
-      required: ["project_id"],
     },
   },
   {
     name: "wiki_read",
     description:
-      "Read full markdown content of a wiki page by path. Use after wiki_list to drill into a specific page.",
+      "Read full markdown content of a page by path.",
     inputSchema: {
       type: "object" as const,
       properties: {
-        project_id: {
-          type: "string",
-          description: "Project UUID (required)",
-        },
         path: {
           type: "string",
-          description: "Wiki page path (e.g. 'index', 'topics/pricing-sentiment')",
+          description: "Page path (e.g. 'notes/auth-approach', 'projects/my-project/topics/pricing')",
+        },
+        project_id: {
+          type: "string",
+          description: "Optional project UUID — if given, path is resolved under projects/{slug}/",
         },
       },
-      required: ["project_id", "path"],
+      required: ["path"],
     },
   },
   {
     name: "wiki_write",
     description:
-      "Create or update a wiki page. Use mode='replace' to overwrite, mode='append' to add content to an existing page.",
+      "Create or update a page by path. Use mode='replace' to overwrite, mode='append' to add content.",
     inputSchema: {
       type: "object" as const,
       properties: {
-        project_id: {
-          type: "string",
-          description: "Project UUID (required)",
-        },
         path: {
           type: "string",
-          description: "Wiki page path (e.g. 'topics/new-topic')",
+          description: "Page path (e.g. 'notes/my-note', 'projects/my-project/topics/new-topic')",
         },
         title: {
           type: "string",
@@ -426,10 +449,14 @@ export const TOOLS = [
           type: "string",
           description: "Markdown content",
         },
-        category: {
+        project_id: {
           type: "string",
-          description:
-            "Page category: 'topics', 'entities', 'syntheses', 'document', 'prd', 'research', 'log'",
+          description: "Optional project UUID — labels page with this project",
+        },
+        tags: {
+          type: "array",
+          items: { type: "string" },
+          description: "Optional tags (e.g. ['topics', 'research'])",
         },
         mode: {
           type: "string",
@@ -437,40 +464,40 @@ export const TOOLS = [
           description: "Write mode — 'replace' (default) or 'append'",
         },
       },
-      required: ["project_id", "path", "title", "content", "category"],
+      required: ["path", "title", "content"],
     },
   },
   {
     name: "wiki_search",
     description:
-      "Search wiki pages by keyword. Searches both title and content using ILIKE. Returns excerpts.",
+      "Search pages by keyword. Searches both title and content. Returns excerpts.",
     inputSchema: {
       type: "object" as const,
       properties: {
-        project_id: {
-          type: "string",
-          description: "Project UUID (required)",
-        },
         query: {
           type: "string",
           description: "Search query",
         },
-        category: {
+        project_id: {
           type: "string",
-          description: "Optional category filter",
+          description: "Optional project UUID to scope search",
+        },
+        path_prefix: {
+          type: "string",
+          description: "Optional path prefix filter (e.g. 'notes/', 'documents/')",
         },
         limit: {
           type: "number",
           description: "Max results (default 10)",
         },
       },
-      required: ["project_id", "query"],
+      required: ["query"],
     },
   },
   {
     name: "wiki_ingest",
     description:
-      "Trigger wiki ingest for a completed analysis. The LLM reads the analysis and updates/creates wiki pages automatically.",
+      "Trigger wiki ingest for a completed analysis. The LLM reads the analysis and updates/creates pages automatically.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -489,13 +516,13 @@ export const TOOLS = [
   {
     name: "wiki_log",
     description:
-      "Read recent entries from the wiki log page. Shows what changed and when.",
+      "Read recent entries from the log page. Shows what changed and when.",
     inputSchema: {
       type: "object" as const,
       properties: {
         project_id: {
           type: "string",
-          description: "Project UUID (required)",
+          description: "Project UUID — reads from projects/{slug}/log",
         },
         limit: {
           type: "number",
@@ -503,6 +530,37 @@ export const TOOLS = [
         },
       },
       required: ["project_id"],
+    },
+  },
+  {
+    name: "recall",
+    description:
+      "Search your knowledge base. Semantic search first (if embeddings available), keyword fallback. Filter by path prefix, project, or tags.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        search: {
+          type: "string",
+          description: "Search query",
+        },
+        path_prefix: {
+          type: "string",
+          description: "Filter by path prefix (e.g. 'notes/', 'documents/', 'projects/my-project/')",
+        },
+        project_id: {
+          type: "string",
+          description: "Optional project UUID to scope search",
+        },
+        tags: {
+          type: "array",
+          items: { type: "string" },
+          description: "Filter by tags",
+        },
+        limit: {
+          type: "number",
+          description: "Max results (default 20)",
+        },
+      },
     },
   },
 
@@ -1480,75 +1538,83 @@ export async function handleTool(
 
       const tags = (args.tags as string[]) || [];
       const projectId = (args.project_id as string) || null;
-      const taskId = (args.task_id as string) || null;
-      const confidence = (args.confidence as number) ?? 1.0;
       const sourceAgent = detectExecutor();
+      const wordCount = content.split(/\s+/).filter(Boolean).length;
 
-      // Primary: write to Supabase memories table
+      // Build path: projects/{slug}/docs/{title} or notes/{title}
+      let pagePath: string;
+      if (projectId) {
+        // Look up project name for slug
+        let projectSlug = projectId.slice(0, 8);
+        try {
+          const { data: proj } = await sb
+            .from("projects")
+            .select("name")
+            .eq("id", projectId)
+            .single();
+          if (proj?.name) projectSlug = slugify(proj.name);
+        } catch { /* use id prefix as slug */ }
+        pagePath = `projects/${projectSlug}/docs/${slugify(title)}`;
+      } else {
+        pagePath = `notes/${slugify(title)}`;
+      }
+
+      // Primary: upsert to `pages` table
       let savedToSupabase = false;
-      let memoryId: string | null = null;
+      let pageId: string | null = null;
       try {
-        const { data: row, error: sbErr } = await sb
-          .from("memories")
-          .insert({
-            user_id: userId,
-            project_id: projectId,
-            task_id: taskId,
-            title,
-            content,
-            tags,
-            source: "agent",
-            source_agent: sourceAgent,
-            confidence,
-          })
+        const { data: existing } = await sb
+          .from("pages")
           .select("id")
-          .single();
-        if (sbErr) throw sbErr;
+          .eq("user_id", userId)
+          .eq("path", pagePath)
+          .maybeSingle();
+
+        if (existing) {
+          const { error: upErr } = await sb
+            .from("pages")
+            .update({
+              title,
+              content,
+              tags,
+              project_id: projectId,
+              source: "agent",
+              source_agent: sourceAgent,
+              word_count: wordCount,
+              metadata: args.task_id ? { task_id: args.task_id } : {},
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", existing.id);
+          if (upErr) throw upErr;
+          pageId = existing.id;
+        } else {
+          const { data: row, error: insErr } = await sb
+            .from("pages")
+            .insert({
+              user_id: userId,
+              path: pagePath,
+              title,
+              content,
+              tags,
+              project_id: projectId,
+              source: "agent",
+              source_agent: sourceAgent,
+              word_count: wordCount,
+              metadata: args.task_id ? { task_id: args.task_id } : {},
+            })
+            .select("id")
+            .single();
+          if (insErr) throw insErr;
+          pageId = row!.id;
+        }
         savedToSupabase = true;
-        memoryId = row!.id;
 
         // Render to local .md knowledge base (non-blocking)
         try {
           const { renderEntry } = await import("./context/md-store.js");
-          renderEntry({ id: memoryId!, title, content, tags, source: "agent", source_agent: sourceAgent, project_id: projectId, confidence, created_at: new Date().toISOString() });
+          renderEntry({ id: pageId!, title, content, tags, source: "agent", source_agent: sourceAgent, project_id: projectId, confidence: 1.0, created_at: new Date().toISOString() });
         } catch {
-          // Non-blocking — local render failure doesn't affect save
-        }
-
-        // Side effect: write to wiki_pages for project knowledge base
-        if (projectId) {
-          try {
-            const wikiPath = `documents/${slugify(title)}`;
-            const wordCount = content.split(/\s+/).filter(Boolean).length;
-            // Upsert: create or update based on path
-            const { data: existingPage } = await sb
-              .from("wiki_pages")
-              .select("id")
-              .eq("project_id", projectId)
-              .eq("path", wikiPath)
-              .single();
-
-            if (existingPage) {
-              await sb.from("wiki_pages").update({
-                content,
-                word_count: wordCount,
-                updated_at: new Date().toISOString(),
-              }).eq("id", existingPage.id);
-            } else {
-              await sb.from("wiki_pages").insert({
-                project_id: projectId,
-                user_id: userId,
-                path: wikiPath,
-                title,
-                content,
-                category: "document",
-                word_count: wordCount,
-                is_auto: false,
-              });
-            }
-          } catch {
-            // Non-blocking — wiki write failure doesn't affect save
-          }
+          // Non-blocking
         }
       } catch (err: any) {
         console.error(`[save] Supabase write failed: ${err?.message || err}`);
@@ -1562,120 +1628,227 @@ export async function handleTool(
         addBlocks([block], "save");
       }
 
-      // Side effect: publish if requested (absorbs publish_context)
-      if (args.publish && memoryId && savedToSupabase) {
-        try {
-          const teamId = args.team_id as string;
-          if (teamId) {
-            await sb
-              .from("memories")
-              .update({
-                is_published: true,
-                published_at: new Date().toISOString(),
-                team_id: teamId,
-              })
-              .eq("id", memoryId)
-              .eq("user_id", userId);
+      return json({ saved: true, id: pageId, path: pagePath, title, tags, supabase: savedToSupabase });
+    }
+
+    case "ingest_folder": {
+      const folderPath = args.path as string;
+      if (!folderPath) return json({ error: "Missing required parameter: path" });
+
+      const resolvedPath = path.resolve(folderPath);
+      if (!fs.existsSync(resolvedPath) || !fs.statSync(resolvedPath).isDirectory()) {
+        return json({ error: `Not a directory: ${resolvedPath}` });
+      }
+
+      const extensions = new Set((args.extensions as string[] | undefined) || [".md", ".txt"]);
+      const recursive = (args.recursive as boolean) ?? false;
+      const projectId = (args.project_id as string) || null;
+      const sourceAgent = "folder_ingest";
+
+      // Collect matching files
+      const filePaths: string[] = [];
+      function walk(dir: string) {
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+          const full = path.join(dir, entry.name);
+          if (entry.isDirectory() && recursive) {
+            walk(full);
+          } else if (entry.isFile()) {
+            const ext = path.extname(entry.name).toLowerCase();
+            if (extensions.has(ext)) filePaths.push(full);
           }
-        } catch {
-          // Non-blocking — publish failure doesn't affect save
+        }
+      }
+      walk(resolvedPath);
+
+      if (filePaths.length === 0) {
+        return json({ error: `No files matching ${[...extensions].join(", ")} found in ${resolvedPath}` });
+      }
+
+      const counts = { new: 0, updated: 0, unchanged: 0, errors: 0 };
+      const folderName = path.basename(resolvedPath);
+
+      for (const fp of filePaths) {
+        try {
+          const content = fs.readFileSync(fp, "utf-8");
+          const contentHash = createHash("md5").update(content).digest("hex");
+          const wordCount = content.split(/\s+/).filter(Boolean).length;
+
+          // Build path: documents/{folder}/{relative-path}
+          const relativePath = path.relative(resolvedPath, fp);
+          const pagePath = `documents/${folderName}/${relativePath}`.replace(/\\/g, "/");
+
+          // Check for existing by (user_id, path)
+          const { data: existing } = await sb
+            .from("pages")
+            .select("id, metadata")
+            .eq("user_id", userId)
+            .eq("path", pagePath)
+            .maybeSingle();
+
+          if (existing) {
+            const oldHash = (existing.metadata as any)?.content_hash;
+            if (oldHash === contentHash) {
+              counts.unchanged++;
+              continue;
+            }
+            // Update
+            await sb
+              .from("pages")
+              .update({
+                content,
+                title: path.basename(fp),
+                word_count: wordCount,
+                metadata: { source_path: fp, source_filename: path.basename(fp), content_hash: contentHash },
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", existing.id);
+            counts.updated++;
+          } else {
+            // Insert
+            await sb
+              .from("pages")
+              .insert({
+                user_id: userId,
+                path: pagePath,
+                title: path.basename(fp),
+                content,
+                tags: ["document", "imported"],
+                source: "agent",
+                source_agent: sourceAgent,
+                word_count: wordCount,
+                metadata: { source_path: fp, source_filename: path.basename(fp), content_hash: contentHash },
+                ...(projectId && { project_id: projectId }),
+              });
+            counts.new++;
+          }
+        } catch (err: any) {
+          console.error(`[ingest_folder] Error processing ${fp}: ${err?.message}`);
+          counts.errors++;
         }
       }
 
-      return json({ saved: true, id: memoryId, title, tags, supabase: savedToSupabase, published: !!(args.publish && memoryId) });
+      const total = filePaths.length;
+      return json({
+        processed: total,
+        new: counts.new,
+        updated: counts.updated,
+        unchanged: counts.unchanged,
+        errors: counts.errors,
+        summary: `Processed ${total} files: ${counts.new} new, ${counts.updated} updated, ${counts.unchanged} unchanged${counts.errors ? `, ${counts.errors} errors` : ""}`,
+      });
     }
 
     case "recall": {
       const search = args.search as string | undefined;
       const tags = args.tags as string[] | undefined;
       const projectId = args.project_id as string | undefined;
+      const pathPrefix = args.path_prefix as string | undefined;
       const limit = (args.limit as number) || 20;
 
-      // When project-scoped: search wiki_pages instead of memories
-      if (projectId) {
-        try {
-          const searchTerm = search?.slice(0, 200);
-          const results: any[] = [];
-
-          if (searchTerm) {
-            // Title matches first
-            const { data: titleData } = await sb
-              .from("wiki_pages")
-              .select("id, path, title, category, content, updated_at")
-              .eq("project_id", projectId)
-              .ilike("title", `%${searchTerm}%`)
-              .order("updated_at", { ascending: false })
-              .limit(limit);
-
-            const titleIds = new Set((titleData || []).map((p: any) => p.id));
-            results.push(...(titleData || []));
-
-            // Content matches (exclude title matches)
-            const { data: contentData } = await sb
-              .from("wiki_pages")
-              .select("id, path, title, category, content, updated_at")
-              .eq("project_id", projectId)
-              .ilike("content", `%${searchTerm}%`)
-              .order("updated_at", { ascending: false })
-              .limit(limit);
-
-            for (const p of contentData || []) {
-              if (!titleIds.has(p.id)) results.push(p);
-            }
-          } else {
-            // No search term — return recent pages
-            const { data } = await sb
-              .from("wiki_pages")
-              .select("id, path, title, category, content, updated_at")
-              .eq("project_id", projectId)
-              .order("updated_at", { ascending: false })
-              .limit(limit);
-            results.push(...(data || []));
-          }
-
-          // Truncate content for recall
-          for (const p of results) {
-            if (p.content?.length > 500) p.content = p.content.slice(0, 500) + "...";
-          }
-
-          return json({
-            memories: results.slice(0, limit),
-            count: Math.min(results.length, limit),
-            search_mode: "wiki",
-            source: "wiki_pages",
-          });
-        } catch {
-          // Fall through to memories search
-        }
-      }
-
-      // Global (no project_id) or wiki fallback: search memories table
+      // ONE code path: search `pages` table
       try {
-        let query = sb
-          .from("memories")
-          .select("id, title, content, tags, source, source_agent, task_id, project_id, confidence, metadata, created_at")
-          .eq("user_id", userId)
-          .order("created_at", { ascending: false })
-          .limit(limit);
+        // Try semantic search first if we have a search query
+        if (search) {
+          try {
+            const { requireApiKey, agentPost } = await import("./agent-proxy.js");
+            const agentApiKey = requireApiKey();
+            const embedResult = await agentPost(
+              "/agent/v1/content/embed",
+              { text: search },
+              agentApiKey
+            );
+            if ((embedResult as any)?.embedding) {
+              const { data: semanticResults, error: semErr } = await sb.rpc("search_pages", {
+                p_user_id: userId,
+                p_query_embedding: (embedResult as any).embedding,
+                p_match_count: limit,
+                p_project_id: projectId || null,
+                p_path_prefix: pathPrefix || null,
+                p_tags: tags || null,
+              });
+              if (!semErr && semanticResults && semanticResults.length > 0) {
+                // Truncate content
+                for (const p of semanticResults) {
+                  if (p.content?.length > 500) p.content = p.content.slice(0, 500) + "...";
+                }
+                return json({
+                  pages: semanticResults,
+                  count: semanticResults.length,
+                  search_mode: "semantic",
+                });
+              }
+            }
+          } catch {
+            // Semantic search unavailable — fall through to keyword
+          }
+        }
 
-        if (projectId) query = query.eq("project_id", projectId);
-        if (tags && tags.length > 0) query = query.overlaps("tags", tags);
-        if (search) query = query.or(`title.ilike.%${search}%,content.ilike.%${search}%`);
+        // Keyword search fallback
+        const searchTerm = search?.slice(0, 200);
+        const results: any[] = [];
 
-        const { data, error } = await query;
-        if (error) throw error;
+        if (searchTerm) {
+          // Title matches first
+          let titleQ = sb
+            .from("pages")
+            .select("id, path, title, content, tags, project_id, source, updated_at")
+            .eq("user_id", userId)
+            .ilike("title", `%${searchTerm}%`)
+            .order("updated_at", { ascending: false })
+            .limit(limit);
+          if (projectId) titleQ = titleQ.eq("project_id", projectId);
+          if (pathPrefix) titleQ = titleQ.like("path", `${pathPrefix}%`);
+          if (tags && tags.length > 0) titleQ = titleQ.overlaps("tags", tags);
+          const { data: titleData } = await titleQ;
+          const titleIds = new Set((titleData || []).map((p: any) => p.id));
+          results.push(...(titleData || []));
+
+          // Content matches
+          let contentQ = sb
+            .from("pages")
+            .select("id, path, title, content, tags, project_id, source, updated_at")
+            .eq("user_id", userId)
+            .ilike("content", `%${searchTerm}%`)
+            .order("updated_at", { ascending: false })
+            .limit(limit);
+          if (projectId) contentQ = contentQ.eq("project_id", projectId);
+          if (pathPrefix) contentQ = contentQ.like("path", `${pathPrefix}%`);
+          if (tags && tags.length > 0) contentQ = contentQ.overlaps("tags", tags);
+          const { data: contentData } = await contentQ;
+
+          for (const p of contentData || []) {
+            if (!titleIds.has(p.id)) results.push(p);
+          }
+        } else {
+          // No search term — return recent pages
+          let recentQ = sb
+            .from("pages")
+            .select("id, path, title, content, tags, project_id, source, updated_at")
+            .eq("user_id", userId)
+            .order("updated_at", { ascending: false })
+            .limit(limit);
+          if (projectId) recentQ = recentQ.eq("project_id", projectId);
+          if (pathPrefix) recentQ = recentQ.like("path", `${pathPrefix}%`);
+          if (tags && tags.length > 0) recentQ = recentQ.overlaps("tags", tags);
+          const { data } = await recentQ;
+          results.push(...(data || []));
+        }
+
+        // Truncate content
+        for (const p of results) {
+          if (p.content?.length > 500) p.content = p.content.slice(0, 500) + "...";
+        }
 
         return json({
-          memories: data || [],
-          count: (data || []).length,
+          pages: results.slice(0, limit),
+          count: Math.min(results.length, limit),
           search_mode: "keyword",
-          index_path: "~/.crowdlisten/context/INDEX.md",
         });
       } catch {
-        // Fallback: local .md index → legacy JSON
+        // Fallback: local .md index
         const { searchLocalIndex } = await import("./context/md-store.js");
         const results = searchLocalIndex(search, { tags, limit });
-        return json({ memories: results, count: results.length, search_mode: "local_md" });
+        return json({ pages: results, count: results.length, search_mode: "local_md" });
       }
     }
 
@@ -1683,105 +1856,58 @@ export async function handleTool(
     case "sync_context": {
       try {
         const { data, error } = await sb
-          .from("memories")
-          .select("id, title, content, tags, source, source_agent, project_id, confidence, created_at")
+          .from("pages")
+          .select("id, path, title, content, tags, source, source_agent, project_id, created_at")
           .eq("user_id", userId)
           .order("created_at", { ascending: false });
 
         if (error) throw error;
-        const memories = data || [];
+        const allPages = data || [];
         const organize = (args.organize as boolean) ?? false;
         const dryRun = (args.dry_run as boolean) ?? false;
 
-        // Rebuild local .md files (unless dry_run with organize)
+        // Rebuild local .md files
         if (!(organize && dryRun)) {
           const { renderAll } = await import("./context/md-store.js");
-          renderAll(memories);
+          renderAll(allPages);
         }
 
-        // Also sync wiki pages per-project
-        let wikiStats: { projects: number; pages: number } = { projects: 0, pages: 0 };
-        if (!(organize && dryRun)) {
-          try {
-            // Get distinct project_ids that have wiki pages
-            const { data: projectRows } = await sb
-              .from("wiki_pages")
-              .select("project_id")
-              .eq("user_id", userId);
-
-            const projectIds = [...new Set((projectRows || []).map((r: any) => r.project_id))];
-
-            if (projectIds.length > 0) {
-              // Fetch project names for directory slugs
-              const { data: projects } = await sb
-                .from("projects")
-                .select("id, name")
-                .in("id", projectIds);
-
-              const projectMap = new Map((projects || []).map((p: any) => [p.id, p.name]));
-              const { renderWikiPages } = await import("./context/md-store.js");
-
-              for (const pid of projectIds) {
-                const { data: pages } = await sb
-                  .from("wiki_pages")
-                  .select("path, title, category, content, source_count, word_count, updated_at")
-                  .eq("project_id", pid)
-                  .order("updated_at", { ascending: false });
-
-                if (pages && pages.length > 0) {
-                  const projectName = projectMap.get(pid) || pid;
-                  const slug = projectName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-                  renderWikiPages(slug, pages);
-                  wikiStats.projects++;
-                  wikiStats.pages += pages.length;
-                }
-              }
-            }
-          } catch {
-            // Non-blocking — wiki sync is best-effort
-          }
-        }
-
-        // Simple sync — just pull and rebuild
         if (!organize) {
           const { readMeta } = await import("./context/md-store.js");
           const meta = readMeta();
           return json({
             synced: true,
-            entry_count: memories.length,
-            wiki_projects: wikiStats.projects,
-            wiki_pages: wikiStats.pages,
+            page_count: allPages.length,
             index_path: "~/.crowdlisten/context/INDEX.md",
-            wiki_path: wikiStats.projects > 0 ? "~/.crowdlisten/context/projects/" : undefined,
             meta,
           });
         }
 
         // Organize mode — dedup + topic grouping
         const tagGroups: Record<string, { count: number; titles: string[] }> = {};
-        for (const m of memories) {
-          for (const tag of (m.tags || [])) {
+        for (const p of allPages) {
+          for (const tag of (p.tags || [])) {
             if (!tagGroups[tag]) tagGroups[tag] = { count: 0, titles: [] };
             tagGroups[tag].count++;
-            if (tagGroups[tag].titles.length < 5) tagGroups[tag].titles.push(m.title);
+            if (tagGroups[tag].titles.length < 5) tagGroups[tag].titles.push(p.title);
           }
         }
 
         const duplicates: Array<{ a: string; b: string; similarity: number; titleA: string; titleB: string }> = [];
-        for (let i = 0; i < memories.length; i++) {
-          const wordsA = new Set(memories[i].title.toLowerCase().split(/\s+/));
-          for (let j = i + 1; j < memories.length; j++) {
-            const wordsB = new Set(memories[j].title.toLowerCase().split(/\s+/));
+        for (let i = 0; i < allPages.length; i++) {
+          const wordsA = new Set(allPages[i].title.toLowerCase().split(/\s+/));
+          for (let j = i + 1; j < allPages.length; j++) {
+            const wordsB = new Set(allPages[j].title.toLowerCase().split(/\s+/));
             const intersection = new Set([...wordsA].filter(w => wordsB.has(w)));
             const union = new Set([...wordsA, ...wordsB]);
             const similarity = union.size > 0 ? intersection.size / union.size : 0;
             if (similarity >= 0.7) {
               duplicates.push({
-                a: memories[i].id,
-                b: memories[j].id,
+                a: allPages[i].id,
+                b: allPages[j].id,
                 similarity: Math.round(similarity * 100) / 100,
-                titleA: memories[i].title,
-                titleB: memories[j].title,
+                titleA: allPages[i].title,
+                titleB: allPages[j].title,
               });
             }
           }
@@ -1799,7 +1925,7 @@ export async function handleTool(
 
         return json({
           synced: !dryRun,
-          total_entries: memories.length,
+          total_pages: allPages.length,
           tag_groups: tagGroups,
           topic_candidates: topicCandidates,
           duplicates: duplicates.slice(0, 20),
@@ -1811,29 +1937,28 @@ export async function handleTool(
       }
     }
 
-    // Legacy: publish_context — still works directly for existing callers
+    // Legacy: publish_context
     case "publish_context": {
-      const memoryId = args.memory_id as string;
+      const pageId = (args.memory_id || args.page_id) as string;
       const teamId = args.team_id as string;
 
-      if (!memoryId || !teamId) {
-        return json({ error: "Missing required parameters: memory_id, team_id" });
+      if (!pageId || !teamId) {
+        return json({ error: "Missing required parameters: page_id (or memory_id), team_id" });
       }
 
       try {
         const { error } = await sb
-          .from("memories")
+          .from("pages")
           .update({
-            is_published: true,
-            published_at: new Date().toISOString(),
-            team_id: teamId,
+            is_published: true,  // publish flag
           })
-          .eq("id", memoryId)
+          .eq("id", pageId)
           .eq("user_id", userId);
 
+        // Note: publish to team functionality preserved — metadata tracks publish state
         if (error) throw error;
 
-        return json({ published: true, memory_id: memoryId, team_id: teamId });
+        return json({ published: true, page_id: pageId, team_id: teamId });
       } catch (err: any) {
         return json({ error: `Publish failed: ${err?.message || err}` });
       }
@@ -2079,18 +2204,19 @@ export async function handleTool(
 
     // log_learning, search_learnings → removed (consolidated into save/recall)
 
-    // ── Wiki Tools ─────────────────────────────────────────────────────────
+    // ── Wiki Tools (unified `pages` table) ──────────────────────────────────
     case "wiki_list": {
-      const projectId = args.project_id as string;
-      const category = args.category as string | undefined;
+      const projectId = args.project_id as string | undefined;
+      const pathPrefix = args.path_prefix as string | undefined;
 
       let query = sb
-        .from("wiki_pages")
-        .select("id, path, title, category, source_count, word_count, is_auto, updated_at, content")
-        .eq("project_id", projectId)
+        .from("pages")
+        .select("id, path, title, tags, word_count, is_auto, updated_at, content")
+        .eq("user_id", userId)
         .order("updated_at", { ascending: false });
 
-      if (category) query = query.eq("category", category);
+      if (projectId) query = query.eq("project_id", projectId);
+      if (pathPrefix) query = query.like("path", `${pathPrefix}%`);
 
       const { data, error } = await query;
       if (error) throw new Error(error.message);
@@ -2105,51 +2231,70 @@ export async function handleTool(
     }
 
     case "wiki_read": {
-      const projectId = args.project_id as string;
       const pagePath = args.path as string;
+      const projectId = args.project_id as string | undefined;
 
-      const { data, error } = await sb
-        .from("wiki_pages")
+      // Try exact path first
+      let { data, error } = await sb
+        .from("pages")
         .select("*")
-        .eq("project_id", projectId)
+        .eq("user_id", userId)
         .eq("path", pagePath)
-        .single();
+        .maybeSingle();
 
-      if (error) throw new Error(`Wiki page not found: ${pagePath}`);
+      // If not found and project_id given, try with project prefix
+      if (!data && projectId) {
+        let projectSlug = projectId.slice(0, 8);
+        try {
+          const { data: proj } = await sb.from("projects").select("name").eq("id", projectId).single();
+          if (proj?.name) projectSlug = slugify(proj.name);
+        } catch { /* use id prefix */ }
+        const prefixedPath = `projects/${projectSlug}/${pagePath}`;
+        const result = await sb
+          .from("pages")
+          .select("*")
+          .eq("user_id", userId)
+          .eq("path", prefixedPath)
+          .maybeSingle();
+        data = result.data;
+        error = result.error;
+      }
+
+      if (error || !data) throw new Error(`Page not found: ${pagePath}`);
       return json({ page: data });
     }
 
     case "wiki_write": {
-      const projectId = args.project_id as string;
       const pagePath = args.path as string;
       const title = args.title as string;
       const content = args.content as string;
-      const category = args.category as string;
+      const projectId = args.project_id as string | undefined;
+      const writeTags = (args.tags as string[]) || [];
       const mode = (args.mode as string) || "replace";
 
       const wordCount = content.split(/\s+/).filter(Boolean).length;
 
-      // Check if page exists
+      // Check if page exists by (user_id, path)
       const { data: existing } = await sb
-        .from("wiki_pages")
+        .from("pages")
         .select("id, content")
-        .eq("project_id", projectId)
+        .eq("user_id", userId)
         .eq("path", pagePath)
-        .single();
+        .maybeSingle();
 
       if (existing) {
-        // Update existing page
         const newContent = mode === "append"
           ? existing.content + "\n\n" + content
           : content;
         const newWordCount = newContent.split(/\s+/).filter(Boolean).length;
 
         const { error } = await sb
-          .from("wiki_pages")
+          .from("pages")
           .update({
             title,
             content: newContent,
-            category,
+            tags: writeTags.length > 0 ? writeTags : undefined,
+            project_id: projectId || undefined,
             word_count: newWordCount,
             updated_at: new Date().toISOString(),
           })
@@ -2158,16 +2303,15 @@ export async function handleTool(
         if (error) throw new Error(error.message);
         return json({ action: "updated", path: pagePath, mode, word_count: newWordCount });
       } else {
-        // Create new page
         const { error } = await sb
-          .from("wiki_pages")
+          .from("pages")
           .insert({
-            project_id: projectId,
             user_id: userId,
             path: pagePath,
             title,
             content,
-            category,
+            tags: writeTags,
+            project_id: projectId || null,
             word_count: wordCount,
             is_auto: false,
           });
@@ -2178,44 +2322,44 @@ export async function handleTool(
     }
 
     case "wiki_search": {
-      const projectId = args.project_id as string;
       const query = args.query as string;
-      const category = args.category as string | undefined;
+      const projectId = args.project_id as string | undefined;
+      const pathPrefix = args.path_prefix as string | undefined;
       const limit = (args.limit as number) || 10;
       const searchTerm = query.slice(0, 200);
 
       // Title matches first
       let titleQ = sb
-        .from("wiki_pages")
-        .select("id, path, title, category, content, source_count, word_count, updated_at")
-        .eq("project_id", projectId)
+        .from("pages")
+        .select("id, path, title, tags, content, word_count, updated_at")
+        .eq("user_id", userId)
         .ilike("title", `%${searchTerm}%`)
         .order("updated_at", { ascending: false })
         .limit(limit);
 
-      if (category) titleQ = titleQ.eq("category", category);
+      if (projectId) titleQ = titleQ.eq("project_id", projectId);
+      if (pathPrefix) titleQ = titleQ.like("path", `${pathPrefix}%`);
       const { data: titleData } = await titleQ;
       const titleIds = new Set((titleData || []).map((p: any) => p.id));
 
-      // Content matches (exclude title matches)
+      // Content matches
       let contentQ = sb
-        .from("wiki_pages")
-        .select("id, path, title, category, content, source_count, word_count, updated_at")
-        .eq("project_id", projectId)
+        .from("pages")
+        .select("id, path, title, tags, content, word_count, updated_at")
+        .eq("user_id", userId)
         .ilike("content", `%${searchTerm}%`)
         .order("updated_at", { ascending: false })
         .limit(limit);
 
-      if (category) contentQ = contentQ.eq("category", category);
+      if (projectId) contentQ = contentQ.eq("project_id", projectId);
+      if (pathPrefix) contentQ = contentQ.like("path", `${pathPrefix}%`);
       const { data: contentData } = await contentQ;
 
-      // Merge: title matches first, then content-only
       const pages: any[] = [...(titleData || [])];
       for (const p of contentData || []) {
         if (!titleIds.has(p.id)) pages.push(p);
       }
 
-      // Truncate content to excerpt
       for (const p of pages) {
         if (p.content?.length > 300) {
           p.content = p.content.slice(0, 300) + "...";
@@ -2248,19 +2392,28 @@ export async function handleTool(
       const projectId = args.project_id as string;
       const limit = (args.limit as number) || 20;
 
+      // Resolve project slug for log path
+      let projectSlug = projectId.slice(0, 8);
+      try {
+        const { data: proj } = await sb.from("projects").select("name").eq("id", projectId).single();
+        if (proj?.name) projectSlug = slugify(proj.name);
+      } catch { /* use id prefix */ }
+
+      const logPath = `projects/${projectSlug}/log`;
+
       // Read the log page
       const { data, error } = await sb
-        .from("wiki_pages")
+        .from("pages")
         .select("content, updated_at")
-        .eq("project_id", projectId)
-        .eq("path", "log")
-        .single();
+        .eq("user_id", userId)
+        .eq("path", logPath)
+        .maybeSingle();
 
       if (error || !data) {
         return json({ entries: [], message: "No log page found for this project." });
       }
 
-      // Parse log entries (each starts with "## " or "- ")
+      // Parse log entries
       const lines = data.content.split("\n");
       const entries: string[] = [];
       let current = "";
@@ -2283,36 +2436,27 @@ export async function handleTool(
     }
 
     case "crowd_research": {
-      // Enrich with wiki context when project is available, then delegate
+      // Enrich with page context when available, then delegate
       if (!args.context) {
         try {
-          // Try to find a recent project to pull wiki context from
-          const { data: recentProject } = await sb
-            .from("projects")
-            .select("id")
-            .eq("user_id", userId)
-            .order("updated_at", { ascending: false })
-            .limit(1)
-            .single();
-
-          if (recentProject) {
-            const searchTerm = (args.query as string)?.slice(0, 200);
-            const { data: wikiPages } = await sb
-              .from("wiki_pages")
-              .select("title, content, category")
-              .eq("project_id", recentProject.id)
+          const searchTerm = (args.query as string)?.slice(0, 200);
+          if (searchTerm) {
+            const { data: contextPages } = await sb
+              .from("pages")
+              .select("path, title, content")
+              .eq("user_id", userId)
               .ilike("content", `%${searchTerm}%`)
               .order("updated_at", { ascending: false })
               .limit(5);
 
-            if (wikiPages && wikiPages.length > 0) {
-              args.context = wikiPages
-                .map((p: any) => `[${p.category}] ${p.title}\n${p.content?.slice(0, 500)}`)
+            if (contextPages && contextPages.length > 0) {
+              args.context = contextPages
+                .map((p: any) => `[${p.path}] ${p.title}\n${p.content?.slice(0, 500)}`)
                 .join("\n---\n");
             }
           }
         } catch {
-          // Graceful degradation — run without wiki context
+          // Graceful degradation
         }
       }
       return handleAgentTool(name, args);

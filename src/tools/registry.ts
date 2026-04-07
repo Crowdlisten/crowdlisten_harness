@@ -60,12 +60,12 @@ const packs: Map<string, SkillPack> = new Map();
  * Built-in skill packs grouping tools into logical units.
  */
 export function initializeRegistry(skillsDir: string): void {
-  // Core — always on (2 tools + wiki)
+  // Core — always on (discovery + knowledge base)
   packs.set("core", {
     id: "core",
     name: "Core",
-    description: "Discovery + memory — manage skill packs, save context, browse project wiki",
-    toolNames: ["skills", "save", "wiki_list", "wiki_read", "wiki_write", "wiki_search", "wiki_ingest", "wiki_log"],
+    description: "Discovery + knowledge — manage skill packs, save/recall context, browse and edit pages",
+    toolNames: ["skills", "save", "recall", "ingest_folder", "wiki_list", "wiki_read", "wiki_write", "wiki_search", "wiki_ingest", "wiki_log"],
   });
 
   // Planning — task management (4 tools)
