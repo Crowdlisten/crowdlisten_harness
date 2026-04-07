@@ -144,7 +144,9 @@ export async function getContentComments(service: UnifiedSocialMediaService, arg
     if (!extractedId) {
       throw new Error(`Unable to extract TikTok video ID from URL: ${contentId}`);
     }
-    normalizedContentId = extractedId;
+    // Pass the full resolved URL (with @username) so the adapter can navigate directly.
+    // Passing only the numeric ID causes a 404 since TikTok requires /@username/video/{id}.
+    normalizedContentId = resolvedUrl.includes('/@') ? resolvedUrl : extractedId;
   } else if (platform === 'instagram' && typeof contentId === 'string' && InstagramUrlUtils.isInstagramUrl(contentId)) {
     const resolvedUrl = await InstagramUrlUtils.resolveUrl(contentId);
     const extractedId = InstagramUrlUtils.extractShortcode(resolvedUrl);
