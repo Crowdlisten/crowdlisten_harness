@@ -97,29 +97,33 @@ Full tool reference: **[docs/TOOLS.md](docs/TOOLS.md)**
 
 ### Knowledge Base
 
-Every agent interaction can make the knowledge base better. The system works as a compounding loop:
+Every agent interaction compounds knowledge. The unified `pages` table stores all knowledge with path-based identity — like a filesystem in the cloud.
 
 ```
- save()          Supabase              ~/.crowdlisten/context/
-───────→  memories table  ──render──→  ├── INDEX.md
-                                       ├── entries/a1b2c3d4.md
- wiki_search()   ↑                     └── topics/auth.md
+ save()          Supabase `pages`       ~/.crowdlisten/kb/
+───────→  UNIQUE(user_id, path)  sync→  ├── notes/auth-approach.md
+                                        ├── projects/cl/topics/...
+ wiki_search()   ↑                      └── documents/thesis/ch1.md
 ←────────────────┘
- wiki_list()                           wiki_ingest()
- browse index                          ingest external content
+ recall()        semantic search         watch / sync
+ wiki_list()     browse by path          auto-sync local folders
 ```
 
 **How data flows:**
 
-1. **Save** — `save({ title, content, tags })` writes to Supabase and renders a `.md` file locally. Pass `publish: { team_id }` to share with teammates.
-2. **Browse** — `wiki_list()` browses the index. `wiki_read(entry_id)` reads a single entry.
-3. **Search** — `wiki_search({ query })` performs full-text search across all entries.
-4. **Ingest** — `wiki_ingest({ url_or_text })` ingests external content into the knowledge base.
-5. **Log** — `wiki_log({ message })` appends timestamped log entries for decisions and progress.
+1. **Save** — `save({ title, content, tags })` writes to the `pages` table. Pass `publish: { team_id }` to share with teammates.
+2. **Recall** — `recall({ query })` performs semantic search (pgvector cosine similarity) with keyword fallback. Filter by path prefix or tags.
+3. **Browse** — `wiki_list()` browses pages. `wiki_read(path)` reads a single page.
+4. **Search** — `wiki_search({ query })` performs full-text search across all pages.
+5. **Ingest** — `wiki_ingest({ url_or_text })` ingests external content into the knowledge base.
+6. **Log** — `wiki_log({ message })` appends timestamped log entries for decisions and progress.
+7. **Sync** — `npx @crowdlisten/harness sync ~/folder` syncs a local folder to pages. `watch` mode auto-syncs on file changes.
 
-**The compounding effect:** After every analysis or research task, the agent saves 2-3 key takeaways. The wiki tools let agents browse, search, and organize knowledge. The next agent starts with a rich knowledge base instead of a blank slate.
+**Path conventions:** `notes/` for standalone notes, `projects/{slug}/` for project-scoped content, `documents/` for ingested files, `decisions/` for architectural decisions.
 
-Supabase is the source of truth. The local `.md` folder is a read-only rendered cache — no sync conflicts, no merge issues.
+**The compounding effect:** After every analysis or research task, the agent saves key takeaways. The wiki and recall tools let agents browse, search, and organize knowledge semantically. The next agent starts with a rich knowledge base instead of a blank slate.
+
+Supabase `pages` table is the source of truth. Local `.md` folders can be synced bidirectionally via the `watch` and `sync` CLI commands.
 
 ### Platforms
 
@@ -143,11 +147,26 @@ Supabase is the source of truth. The local `.md` folder is a read-only rendered 
 npx @crowdlisten/harness login          # Sign in + auto-configure agents
 npx @crowdlisten/harness setup          # Re-run auto-configure
 npx @crowdlisten/harness serve          # Start HTTP server on :3848
+npx @crowdlisten/harness sync ~/kb      # One-shot sync local folder to pages
+npx @crowdlisten/harness watch ~/kb     # Auto-sync on file changes (Dropbox-style)
 
 npx crowdlisten search reddit "AI agents" --limit 20
 npx crowdlisten vision https://news.ycombinator.com --limit 10
 npx crowdlisten trending reddit --limit 10
 ```
+
+### Watch Mode
+
+`watch` monitors a local folder and syncs changes to the `pages` table in real time:
+
+```bash
+npx @crowdlisten/harness watch ~/Desktop/knowledge
+# Watching ~/Desktop/knowledge... (12 files synced)
+# [14:32] Updated: notes/auth-approach.md
+# [14:35] Updated: decisions/db-choice.md
+```
+
+Files are synced using content hashing (MD5) — unchanged files are skipped. The `sync` command does a one-shot sync without watching.
 
 ## Privacy
 
