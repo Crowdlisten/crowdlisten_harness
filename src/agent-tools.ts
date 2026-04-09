@@ -149,6 +149,53 @@ export const AGENT_TOOLS = [
     },
   },
 
+  // ── Insight Compiler (2 tools) ──────────────────────────────────────
+  {
+    name: "get_user_context",
+    description:
+      "[Insight Compiler] Search synthesized user feedback by topic. Returns insight wiki pages matching the query — themes, severity, evidence quotes, and trends compiled from connected channels.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        topic: {
+          type: "string",
+          description: "Topic to search for (e.g., 'pricing', 'onboarding', 'mobile app bugs')",
+        },
+        project_id: {
+          type: "string",
+          description: "Optional project UUID to scope search",
+        },
+        limit: {
+          type: "number",
+          description: "Max results (default 10, max 50)",
+        },
+      },
+      required: ["topic"],
+    },
+  },
+  {
+    name: "get_recent_insights",
+    description:
+      "[Insight Compiler] Get recently updated insight pages — synthesized user feedback themes from the last N days. Shows what's trending in user feedback across all connected channels.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        days: {
+          type: "number",
+          description: "Look back N days (default 7, max 90)",
+        },
+        project_id: {
+          type: "string",
+          description: "Optional project UUID to scope results",
+        },
+        limit: {
+          type: "number",
+          description: "Max results (default 20, max 50)",
+        },
+      },
+    },
+  },
+
   // ── Task Execution (2 tools) ──────────────────────────────────────────
   {
     name: "execute_task",
@@ -383,6 +430,31 @@ export async function handleAgentTool(
 
     case "get_capabilities": {
       const result = await agentGet("/api/agents/capabilities", apiKey);
+      return JSON.stringify(result, null, 2);
+    }
+
+    // ── Insight Compiler ─────────────────────────────────────
+    case "get_user_context": {
+      const params = new URLSearchParams();
+      if (args.topic) params.set("topic", args.topic as string);
+      if (args.project_id) params.set("project_id", args.project_id as string);
+      if (args.limit) params.set("limit", String(args.limit));
+      const result = await agentGet(
+        `/agent/v1/insights/context?${params.toString()}`,
+        apiKey
+      );
+      return JSON.stringify(result, null, 2);
+    }
+
+    case "get_recent_insights": {
+      const params = new URLSearchParams();
+      if (args.days) params.set("days", String(args.days));
+      if (args.project_id) params.set("project_id", args.project_id as string);
+      if (args.limit) params.set("limit", String(args.limit));
+      const result = await agentGet(
+        `/agent/v1/insights/recent?${params.toString()}`,
+        apiKey
+      );
       return JSON.stringify(result, null, 2);
     }
 

@@ -121,6 +121,14 @@ export function initializeRegistry(skillsDir: string): void {
     toolNames: ["crowd_research"],
   });
 
+  // Insight Compiler — synthesized feedback query (2 tools)
+  packs.set("insight-compiler", {
+    id: "insight-compiler",
+    name: "Insight Compiler",
+    description: "Search and retrieve synthesized user feedback from connected channels — themes, severity, evidence, and trends.",
+    toolNames: ["get_user_context", "get_recent_insights"],
+  });
+
   // ── Virtual SKILL.md Packs ────────────────────────────────────────────
   // Each native skill directory becomes a virtual pack
   if (fs.existsSync(skillsDir)) {
