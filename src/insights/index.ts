@@ -179,7 +179,7 @@ export const INSIGHTS_TOOLS = [
   // ── Analysis tools ──────────────────────────────────────────────────────
   {
     name: 'analyze_content',
-    description: 'Analyze a post and its comments via the CrowdListen analysis API — sentiment, themes, tension synthesis. Set enrichment=true to also add intent detection, stance analysis, and engagement scoring.',
+    description: 'Analyze a post and its comments via the CrowdListen analysis API — sentiment, themes, tension synthesis. Also: set cluster=true for opinion clustering (was cluster_opinions), or extract=true for insight extraction (was extract_insights). Set enrichment=true to add intent detection, stance analysis, and engagement scoring.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -207,31 +207,17 @@ export const INSIGHTS_TOOLS = [
           type: 'string',
           description: 'Optional analysis context/question (used when enrichment=true)',
         },
-      },
-      required: ['platform', 'contentId'],
-    },
-  },
-  {
-    name: 'cluster_opinions',
-    description: 'Group comments into engagement-weighted semantic opinion clusters. Identifies recurring themes, consensus, and minority viewpoints.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        platform: {
-          type: 'string',
-          enum: ['tiktok', 'twitter', 'reddit', 'instagram', 'youtube', 'moltbook'],
-          description: 'Platform where the content is located',
-        },
-        contentId: {
-          type: 'string',
-          description: 'ID of the content to analyze comments from',
+        // ── Absorbed from cluster_opinions ──
+        cluster: {
+          type: 'boolean',
+          description: 'Run opinion clustering (was cluster_opinions).',
         },
         clusterCount: {
           type: 'number',
           default: 5,
           minimum: 2,
           maximum: 15,
-          description: 'Number of opinion clusters to generate',
+          description: 'Number of opinion clusters to generate (default: 5).',
         },
         includeExamples: {
           type: 'boolean',
@@ -243,29 +229,15 @@ export const INSIGHTS_TOOLS = [
           default: true,
           description: 'Weight clusters by comment engagement (likes, replies)',
         },
-      },
-      required: ['platform', 'contentId'],
-    },
-  },
-  {
-    name: 'extract_insights',
-    description: 'Extract categorized insights (pain points, feature requests, praise, complaints, suggestions) from content via the CrowdListen analysis API.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        platform: {
-          type: 'string',
-          enum: ['tiktok', 'twitter', 'reddit', 'instagram', 'youtube', 'moltbook'],
-          description: 'Platform where the content is located',
-        },
-        contentId: {
-          type: 'string',
-          description: 'ID of the content to extract insights from',
+        // ── Absorbed from extract_insights ──
+        extract: {
+          type: 'boolean',
+          description: 'Extract categorized insights (was extract_insights).',
         },
         categories: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Optional: filter to specific insight categories (e.g. ["pain_points", "feature_requests"])',
+          description: 'Insight categories to extract (e.g. ["pain_points", "feature_requests"]).',
         },
       },
       required: ['platform', 'contentId'],
@@ -375,7 +347,16 @@ export async function handleInsightsTool(
 
     // ── Analysis tools ──────────────────────────────────────────────
     case 'analyze_content': {
-      // Merged: enrichment=true also runs enrichContent
+      // ── Route to absorbed handlers based on params ──
+      if ((args as any).cluster) {
+        // Absorbed from cluster_opinions
+        return JSON.stringify(await clusterOpinions(insightsService, args as any), null, 2);
+      }
+      if ((args as any).extract) {
+        // Absorbed from extract_insights
+        return JSON.stringify(await extractInsights(args as any), null, 2);
+      }
+      // Default: sentiment/themes analysis
       const analysisResult = await analyzeContent(insightsService, args as any);
       if ((args as any).enrichment) {
         const enrichResult = await enrichContent(insightsService, args as any);
@@ -384,6 +365,7 @@ export async function handleInsightsTool(
       return JSON.stringify(analysisResult, null, 2);
     }
 
+    // Legacy aliases — still handled for backward compatibility
     case 'cluster_opinions':
       return JSON.stringify(await clusterOpinions(insightsService, args as any), null, 2);
 

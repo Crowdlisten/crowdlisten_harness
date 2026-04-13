@@ -33,11 +33,37 @@ import {
   callbackHtml,
   autoInstallMcp,
   handleTool,
+  provisionApiKey,
   TOOLS,
   MCP_ENTRY,
   AUTH_FILE,
   type StoredAuth,
 } from "./tools.js";
+
+// ─── Backward-Compatible Tool Aliases ────────────────────────────────────────
+// Old tool names route to new consolidated handlers with parameter mapping.
+// These are hidden from tools/list but still work when agents call them.
+const TOOL_ALIASES: Record<string, { target: string; paramMap?: (args: Record<string, unknown>) => Record<string, unknown> }> = {
+  wiki_write:   { target: "save",           paramMap: (a) => ({ ...a, path: a.path || a.key }) },
+  wiki_read:    { target: "recall",         paramMap: (a) => ({ path: a.path || a.key, project_id: a.project_id, shared_project_id: a.shared_project_id }) },
+  wiki_list:    { target: "recall",         paramMap: (a) => ({ list: true, prefix: a.path_prefix, project_id: a.project_id }) },
+  wiki_search:  { target: "recall",         paramMap: (a) => ({ query: a.query, mode: "keyword", project_id: a.project_id, path_prefix: a.path_prefix, limit: a.limit }) },
+  wiki_log:     { target: "recall",         paramMap: (a) => ({ log: true, project_id: a.project_id, limit: a.limit }) },
+  wiki_ingest:  { target: "save",           paramMap: (a) => ({ analysis_id: a.analysis_id, project_id: a.project_id }) },
+  ingest_folder:{ target: "save",           paramMap: (a) => ({ folder: a.path || a.folder, extensions: a.extensions, recursive: a.recursive, project_id: a.project_id }) },
+  get_user_context:     { target: "recall", paramMap: (a) => ({ context: true, topic: a.topic, project_id: a.project_id, limit: a.limit }) },
+  get_recent_insights:  { target: "recall", paramMap: (a) => ({ recent: true, days: a.days, project_id: a.project_id, limit: a.limit }) },
+  get_observation_feed: { target: "recall", paramMap: (a) => ({ observations: true, project_id: a.project_id, type: a.type, days: a.days, limit: a.limit }) },
+  get_theme_insights:   { target: "recall", paramMap: (a) => ({ themes: true, project_id: a.project_id, limit: a.limit }) },
+  cluster_opinions:     { target: "analyze_content", paramMap: (a) => ({ ...a, cluster: true }) },
+  extract_insights:     { target: "analyze_content", paramMap: (a) => ({ ...a, extract: true }) },
+  claim_task:           { target: "list_tasks",      paramMap: (a) => ({ claim: a.task_id, executor: a.executor, branch: a.branch }) },
+  execute_task:         { target: "complete_task",   paramMap: (a) => ({ ...a, execute: true }) },
+  get_execution_status: { target: "complete_task",   paramMap: (a) => ({ ...a, status: true }) },
+};
+
+/** Set of tool names that are aliases — hidden from tools/list */
+const ALIAS_TOOL_NAMES = new Set(Object.keys(TOOL_ALIASES));
 import {
   runSetupContext,
   runContextCLI,
@@ -57,6 +83,7 @@ import {
 } from "./insights/index.js";
 import { recordEvent, shouldOnboard, getOnboardingPrompt, buildToolPackMap } from "./telemetry.js";
 import { checkSuggestion } from "./suggestions.js";
+import { agentGet, requireApiKey } from "./agent-proxy.js";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -129,6 +156,14 @@ async function interactiveLogin(): Promise<StoredAuth> {
         auth.refresh_token = data.session.refresh_token;
 
         saveAuth(auth);
+
+        // Auto-provision Research Partner API key
+        const apiKey = await provisionApiKey(auth.access_token);
+        if (apiKey) {
+          auth.api_key = apiKey;
+          saveAuth(auth);
+          console.error("🔑 API key auto-issued for agent tools");
+        }
 
         res.end(callbackHtml(true));
         console.error(`\n✅ Logged in as ${auth.email}`);
@@ -205,6 +240,15 @@ async function tokenLogin(accessToken: string, refreshToken: string): Promise<St
   };
 
   saveAuth(auth);
+
+  // Auto-provision Research Partner API key
+  const apiKey = await provisionApiKey(auth.access_token);
+  if (apiKey) {
+    auth.api_key = apiKey;
+    saveAuth(auth);
+    console.error("🔑 API key auto-issued for agent tools");
+  }
+
   console.error(`✅ Logged in as ${auth.email}`);
   console.error(`   Saved to ${AUTH_FILE}\n`);
   return auth;
@@ -263,6 +307,16 @@ async function getAuthedClient(): Promise<{
       expires_at: data.session.expires_at,
     };
     saveAuth(auth);
+  }
+
+  // Lazy provision: backfill API key for users who logged in before auto-provisioning
+  if (!auth.api_key && !process.env.CROWDLISTEN_API_KEY) {
+    const apiKey = await provisionApiKey(auth.access_token);
+    if (apiKey) {
+      auth.api_key = apiKey;
+      saveAuth(auth);
+      console.error("🔑 API key auto-issued for agent tools");
+    }
   }
 
   return { supabase, userId: auth.user_id };
@@ -402,10 +456,12 @@ async function startMcpServer() {
     { capabilities: { tools: { listChanged: true } } }
   );
 
-  // Dynamic ListTools — returns tools based on active packs
+  // Dynamic ListTools — returns tools based on active packs, excluding aliases
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     const state = loadUserState();
-    const tools = getToolsForPacks(state.activePacks);
+    const allTools = getToolsForPacks(state.activePacks);
+    // Filter out absorbed tool names — they still work via alias dispatch but are hidden
+    const tools = allTools.filter((t: any) => !ALIAS_TOOL_NAMES.has(t.name));
     return { tools };
   });
 
@@ -420,11 +476,44 @@ async function startMcpServer() {
     { id: "spec-delivery", toolNames: ["get_specs", "get_spec_detail", "start_spec"] },
   ]);
 
+  // ── Context Priming — compiled truth injection on first tool call ──────
+  let sessionContextPrimed = false;
+
+  async function getCompiledTruthContext(): Promise<string | null> {
+    if (sessionContextPrimed) return null;
+    sessionContextPrimed = true;
+    try {
+      const apiKey = requireApiKey();
+      const data = (await agentGet(
+        "/agent/v1/knowledge/topics?limit=3&min_confidence=0.5",
+        apiKey
+      )) as { topics?: Array<{ title: string; confidence: number; content: string }> };
+      const topics = data?.topics;
+      if (!topics || topics.length === 0) return null;
+      const lines = topics.map(
+        (t) =>
+          `[${t.title}] (confidence: ${Math.round((t.confidence ?? 0) * 100)}%): ${(t.content || "").slice(0, 300)}`
+      );
+      return `## Compiled Intelligence\n${lines.join("\n\n")}`;
+    } catch {
+      // Non-fatal — agent may be unreachable or no topics yet
+      return null;
+    }
+  }
+
   // Unified CallTool handler with telemetry + suggestions interceptor
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    const { name, arguments: toolArgs } = request.params;
-    const args = (toolArgs || {}) as Record<string, unknown>;
+    const { name: rawName, arguments: toolArgs } = request.params;
+    let args = (toolArgs || {}) as Record<string, unknown>;
     const startTime = Date.now();
+
+    // ── Resolve backward-compatible aliases before dispatch ──
+    let name = rawName;
+    if (TOOL_ALIASES[name]) {
+      const alias = TOOL_ALIASES[name];
+      args = alias.paramMap ? alias.paramMap(args) : args;
+      name = alias.target;
+    }
 
     try {
       let result: string;
@@ -435,8 +524,8 @@ async function startMcpServer() {
         result = await handleTool(sb, userId, name, args);
       }
 
-      // After activate_skill_pack, fire tools/list_changed
-      if (name === "activate_skill_pack") {
+      // After skills activation, fire tools/list_changed
+      if (name === "skills" || name === "activate_skill_pack") {
         try {
           const parsed = JSON.parse(result);
           if (parsed._needsListChanged) {
@@ -494,6 +583,15 @@ async function startMcpServer() {
         content.push({
           type: "text" as const,
           text: JSON.stringify({ _suggestion: suggestion }),
+        });
+      }
+
+      // Context priming — inject compiled truth on first tool call
+      const contextHint = await getCompiledTruthContext();
+      if (contextHint) {
+        content.push({
+          type: "text" as const,
+          text: JSON.stringify({ _context_hint: contextHint }),
         });
       }
 

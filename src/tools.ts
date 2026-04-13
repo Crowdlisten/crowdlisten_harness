@@ -315,7 +315,7 @@ export const TOOLS = [
   {
     name: "save",
     description:
-      "Save context that persists across sessions. Use tags to categorize. Set publish=true to share with your team.",
+      "Save context that persists across sessions. Also: write wiki pages (set path), ingest analysis results (set analysis_id), or bulk-import a local folder (set folder). Use tags to categorize. Set publish=true to share with your team.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -352,36 +352,36 @@ export const TOOLS = [
           type: "string",
           description: "Team UUID (required when publish=true)",
         },
-      },
-      required: ["title", "content"],
-    },
-  },
-  {
-    name: "ingest_folder",
-    description:
-      "Bulk-import all files from a local folder into your context library. Deduplicates by absolute file path: skips unchanged files, updates modified ones. Reports new/updated/unchanged counts.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
+        // ── Absorbed from wiki_write ──
         path: {
           type: "string",
-          description: "Absolute path to the folder to ingest",
+          description: "Explicit page path (e.g. 'notes/auth-approach'). If set, writes to this path instead of auto-generating.",
+        },
+        mode: {
+          type: "string",
+          enum: ["replace", "append"],
+          description: "Write mode for path-based saves. Default: replace.",
+        },
+        // ── Absorbed from wiki_ingest ──
+        analysis_id: {
+          type: "string",
+          description: "Analysis ID to convert results into knowledge pages.",
+        },
+        // ── Absorbed from ingest_folder ──
+        folder: {
+          type: "string",
+          description: "Local folder path to sync to knowledge base.",
         },
         extensions: {
           type: "array",
           items: { type: "string" },
-          description: "File extensions to include (default ['.md', '.txt'])",
+          description: "File extensions to include (default [\".md\", \".txt\"]).",
         },
         recursive: {
           type: "boolean",
-          description: "Recurse into subdirectories (default false)",
-        },
-        project_id: {
-          type: "string",
-          description: "Optional project scope",
+          description: "Whether to recurse into subdirectories.",
         },
       },
-      required: ["path"],
     },
   },
 
@@ -391,7 +391,7 @@ export const TOOLS = [
   {
     name: "list_tasks",
     description:
-      "List tasks on the board, or get details of a single task. Pass task_id for single-task detail. Filter by status: todo, inprogress, inreview, done, cancelled.",
+      "List tasks on the board, or get details of a single task. Pass task_id for single-task detail. Filter by status: todo, inprogress, inreview, done, cancelled. Pass claim with a task_id to start working on it.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -399,6 +399,8 @@ export const TOOLS = [
         board_id: { type: "string", description: "Optional: specific board (defaults to global board)" },
         status: { type: "string", description: "Filter by status" },
         limit: { type: "number", description: "Max results (default 50)" },
+        // ── Absorbed from claim_task ──
+        claim: { type: "string", description: "Task ID to claim (start working on it)." },
       },
     },
   },
@@ -422,189 +424,106 @@ export const TOOLS = [
       required: ["title"],
     },
   },
-  {
-    name: "claim_task",
-    description:
-      "Claim a task to start working on it. Moves task to In Progress, creates workspace + session. Returns project context and branch name.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        task_id: { type: "string", description: "Card/task UUID" },
-        executor: {
-          type: "string",
-          description: "Coding agent name: CLAUDE_CODE, CURSOR, GEMINI, CODEX, AMP, OPENCLAW",
-        },
-        branch: { type: "string", description: "Custom branch name (auto-generated if omitted)" },
-      },
-      required: ["task_id"],
-    },
-  },
+  // claim_task tool definition removed — absorbed into list_tasks (use claim param)
+  // Backward-compatible alias handled in TOOL_ALIASES (see index.ts)
   {
     name: "complete_task",
-    description: "Mark task done, or log progress on it. Pass progress=true with message to log a progress note without completing.",
+    description: "Mark task done, log progress, execute via agent, or check execution status. Pass progress=true for progress notes, execute=true for agent execution, status=true to check execution status.",
     inputSchema: {
       type: "object" as const,
       properties: {
         task_id: { type: "string", description: "Card/task UUID" },
         summary: { type: "string", description: "Summary of work completed (or progress message)" },
         progress: { type: "boolean", description: "If true, log progress note without completing the task" },
+        // ── Absorbed from execute_task ──
+        execute: { type: "boolean", description: "Execute task via agent." },
+        session_id: { type: "string", description: "Session UUID (from claim_task or start_session)" },
+        prompt: { type: "string", description: "Execution prompt for agent." },
+        executor: { type: "string", description: "Agent type for execution." },
+        // ── Absorbed from get_execution_status ──
+        status: { type: "boolean", description: "Check execution status." },
+        process_id: { type: "string", description: "Process ID to check status for." },
       },
       required: ["task_id"],
     },
   },
-  // execute_task + get_execution_status come from ...AGENT_TOOLS below
 
-  // ── Wiki Tools (backed by unified `pages` table) ──────────────────────────
+  // ── Wiki tool definitions removed — absorbed into save/recall ──────────────
+  // Backward-compatible aliases are handled in TOOL_ALIASES (see index.ts)
+
   {
-    name: "wiki_list",
+    name: "recall",
     description:
-      "List pages. With project_id, lists project pages. Without, lists all your pages. Returns paths, titles, excerpts.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        project_id: {
-          type: "string",
-          description: "Optional project UUID to filter pages",
-        },
-        path_prefix: {
-          type: "string",
-          description: "Filter by path prefix (e.g. 'notes/', 'documents/')",
-        },
-      },
-    },
-  },
-  {
-    name: "wiki_read",
-    description:
-      "Read full markdown content of a page by path.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        path: {
-          type: "string",
-          description: "Page path (e.g. 'notes/auth-approach', 'projects/my-project/topics/pricing')",
-        },
-        project_id: {
-          type: "string",
-          description: "Optional project UUID — if given, path is resolved under projects/{slug}/",
-        },
-      },
-      required: ["path"],
-    },
-  },
-  {
-    name: "wiki_write",
-    description:
-      "Create or update a page by path. Use mode='replace' to overwrite, mode='append' to add content.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        path: {
-          type: "string",
-          description: "Page path (e.g. 'notes/my-note', 'projects/my-project/topics/new-topic')",
-        },
-        title: {
-          type: "string",
-          description: "Page title",
-        },
-        content: {
-          type: "string",
-          description: "Markdown content",
-        },
-        project_id: {
-          type: "string",
-          description: "Optional project UUID — labels page with this project",
-        },
-        tags: {
-          type: "array",
-          items: { type: "string" },
-          description: "Optional tags (e.g. ['topics', 'research'])",
-        },
-        mode: {
-          type: "string",
-          enum: ["replace", "append"],
-          description: "Write mode — 'replace' (default) or 'append'",
-        },
-      },
-      required: ["path", "title", "content"],
-    },
-  },
-  {
-    name: "wiki_search",
-    description:
-      "Search pages by keyword. Searches both title and content. Returns excerpts.",
+      "Search your knowledge base. Also: read a page by path, list pages, keyword search, view activity log, get recent insights, get user context, get observation feed, or get clustered themes. Semantic search by default.",
     inputSchema: {
       type: "object" as const,
       properties: {
         query: {
           type: "string",
-          description: "Search query",
+          description: "Search query for semantic search (default) or keyword search.",
         },
-        project_id: {
+        // ── Absorbed from wiki_read ──
+        path: {
           type: "string",
-          description: "Optional project UUID to scope search",
+          description: "Read a specific page by path.",
         },
-        path_prefix: {
+        shared_project_id: {
           type: "string",
-          description: "Optional path prefix filter (e.g. 'notes/', 'documents/')",
+          description: "Public project UUID — reads from a shared project's knowledge base (no auth required for public projects)",
         },
-        limit: {
+        // ── Absorbed from wiki_list ──
+        list: {
+          type: "boolean",
+          description: "List/enumerate pages.",
+        },
+        prefix: {
+          type: "string",
+          description: "Path prefix filter for listing.",
+        },
+        // ── Absorbed from wiki_search ──
+        mode: {
+          type: "string",
+          enum: ["semantic", "keyword"],
+          description: "Search mode. Default: semantic.",
+        },
+        // ── Absorbed from wiki_log ──
+        log: {
+          type: "boolean",
+          description: "Return activity log entries.",
+        },
+        // ── Absorbed from get_recent_insights ──
+        recent: {
+          type: "boolean",
+          description: "Get time-filtered recent insights.",
+        },
+        days: {
           type: "number",
-          description: "Max results (default 10)",
+          description: "Lookback days for recent mode. Default: 7.",
         },
-      },
-      required: ["query"],
-    },
-  },
-  {
-    name: "wiki_ingest",
-    description:
-      "Trigger wiki ingest for a completed analysis. The LLM reads the analysis and updates/creates pages automatically.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        project_id: {
+        // ── Absorbed from get_user_context ──
+        context: {
+          type: "boolean",
+          description: "Get synthesized context on a topic.",
+        },
+        topic: {
           type: "string",
-          description: "Project UUID (required)",
+          description: "Topic filter for context mode.",
         },
-        analysis_id: {
+        // ── Absorbed from get_observation_feed ──
+        observations: {
+          type: "boolean",
+          description: "Get observation feed.",
+        },
+        type: {
           type: "string",
-          description: "Analysis UUID to ingest",
+          description: "Observation type filter.",
         },
-      },
-      required: ["project_id", "analysis_id"],
-    },
-  },
-  {
-    name: "wiki_log",
-    description:
-      "Read recent entries from the log page. Shows what changed and when.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        project_id: {
-          type: "string",
-          description: "Project UUID — reads from projects/{slug}/log",
+        // ── Absorbed from get_theme_insights ──
+        themes: {
+          type: "boolean",
+          description: "Get clustered themes with severity/trends.",
         },
-        limit: {
-          type: "number",
-          description: "Number of recent log entries to return (default 20)",
-        },
-      },
-      required: ["project_id"],
-    },
-  },
-  {
-    name: "recall",
-    description:
-      "Search your knowledge base. Semantic search first (if embeddings available), keyword fallback. Filter by path prefix, project, or tags.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        search: {
-          type: "string",
-          description: "Search query",
-        },
+        // ── Existing filters ──
         path_prefix: {
           type: "string",
           description: "Filter by path prefix (e.g. 'notes/', 'documents/', 'projects/my-project/')",
@@ -842,6 +761,11 @@ export async function handleTool(
 
     // ── Tasks ─────────────────────────────────────────────────
     case "list_tasks": {
+      // ── Absorbed from claim_task ──
+      if (args.claim) {
+        return handleTool(sb, userId, "claim_task", { task_id: args.claim, executor: args.executor, branch: args.branch });
+      }
+
       // Single-task detail mode (absorbs get_task)
       if (args.task_id) {
         const { data, error } = await sb
@@ -1053,8 +977,25 @@ export async function handleTool(
       });
     }
 
-    // ── Complete (absorbs log_progress via progress=true) ──────
+    // ── Complete (absorbs log_progress, execute_task, get_execution_status) ──────
     case "complete_task": {
+      // ── Absorbed from execute_task ──
+      if (args.execute) {
+        return handleAgentTool("execute_task", {
+          session_id: args.session_id,
+          prompt: args.prompt,
+          executor: args.executor,
+          cwd: args.cwd,
+          auto_approve: args.auto_approve,
+          allowed_tools: args.allowed_tools,
+          context: args.context,
+        });
+      }
+      // ── Absorbed from get_execution_status ──
+      if (args.status && args.process_id) {
+        return handleAgentTool("get_execution_status", { process_id: args.process_id });
+      }
+
       const taskId = args.task_id as string;
       const summary = (args.summary as string) || null;
       const progressOnly = !!(args.progress);
@@ -1623,6 +1564,26 @@ export async function handleTool(
       return handleTool(sb, userId, "skills", { action: "activate", pack_id: args.pack_id });
 
     case "save": {
+      // ── Route to absorbed handlers based on params ──
+      if (args.folder) {
+        // Absorbed from ingest_folder
+        return handleTool(sb, userId, "ingest_folder", { path: args.folder, extensions: args.extensions, recursive: args.recursive, project_id: args.project_id });
+      }
+      if (args.analysis_id) {
+        // Absorbed from wiki_ingest
+        return handleTool(sb, userId, "wiki_ingest", { project_id: args.project_id, analysis_id: args.analysis_id });
+      }
+      if (args.path && !args.title) {
+        // Path-only save without title → wiki_write shorthand (title defaults to path basename)
+        const pathBasename = (args.path as string).split("/").pop() || args.path as string;
+        return handleTool(sb, userId, "wiki_write", { path: args.path, title: pathBasename, content: args.content || "", tags: args.tags, project_id: args.project_id, mode: args.mode || "replace" });
+      }
+      if (args.path && args.title) {
+        // Explicit path + title → wiki_write
+        return handleTool(sb, userId, "wiki_write", { path: args.path, title: args.title, content: args.content, tags: args.tags, project_id: args.project_id, mode: args.mode || "replace" });
+      }
+
+      // ── Default: current save logic (semantic memory + page upsert) ──
       const title = args.title as string;
       const content = args.content as string;
 
@@ -1833,7 +1794,42 @@ export async function handleTool(
     }
 
     case "recall": {
-      const search = args.search as string | undefined;
+      // ── Route to absorbed handlers based on params ──
+      if (args.path) {
+        // Absorbed from wiki_read
+        return handleTool(sb, userId, "wiki_read", { path: args.path, project_id: args.project_id, shared_project_id: args.shared_project_id });
+      }
+      if (args.list) {
+        // Absorbed from wiki_list
+        return handleTool(sb, userId, "wiki_list", { project_id: args.project_id, path_prefix: args.prefix || args.path_prefix });
+      }
+      if (args.log) {
+        // Absorbed from wiki_log
+        return handleTool(sb, userId, "wiki_log", { project_id: args.project_id, limit: args.limit });
+      }
+      if (args.mode === "keyword" && args.query) {
+        // Absorbed from wiki_search
+        return handleTool(sb, userId, "wiki_search", { query: args.query, project_id: args.project_id, path_prefix: args.path_prefix || args.prefix, limit: args.limit });
+      }
+      if (args.recent) {
+        // Absorbed from get_recent_insights (agent-proxied)
+        return handleAgentTool("get_recent_insights", { days: args.days || 7, project_id: args.project_id, limit: args.limit });
+      }
+      if (args.context) {
+        // Absorbed from get_user_context (agent-proxied)
+        return handleAgentTool("get_user_context", { topic: args.topic || args.query, project_id: args.project_id, limit: args.limit });
+      }
+      if (args.observations) {
+        // Absorbed from get_observation_feed (agent-proxied)
+        return handleAgentTool("get_observation_feed", { project_id: args.project_id, type: args.type, days: args.days, limit: args.limit });
+      }
+      if (args.themes) {
+        // Absorbed from get_theme_insights (agent-proxied)
+        return handleAgentTool("get_theme_insights", { project_id: args.project_id, limit: args.limit });
+      }
+
+      // ── Default: current recall logic (semantic search) ──
+      const search = (args.query || args.search) as string | undefined;
       const tags = args.tags as string[] | undefined;
       const projectId = args.project_id as string | undefined;
       const pathPrefix = args.path_prefix as string | undefined;
@@ -2302,60 +2298,68 @@ export async function handleTool(
     case "wiki_list": {
       const projectId = args.project_id as string | undefined;
       const pathPrefix = args.path_prefix as string | undefined;
+      const category = args.category as string | undefined;
 
-      let query = sb
-        .from("pages")
-        .select("id, path, title, tags, word_count, is_auto, updated_at, content")
-        .eq("user_id", userId)
-        .order("updated_at", { ascending: false });
-
-      if (projectId) query = query.eq("project_id", projectId);
-      if (pathPrefix) query = query.like("path", `${pathPrefix}%`);
-
-      const { data, error } = await query;
-      if (error) throw new Error(error.message);
-
-      // Truncate content to excerpt
-      const pages = (data || []).map((p: any) => ({
-        ...p,
-        content: p.content?.length > 200 ? p.content.slice(0, 200) + "..." : p.content,
-      }));
-
-      return json({ pages, count: pages.length });
+      try {
+        const { requireApiKey, agentGet } = await import("./agent-proxy.js");
+        const agentApiKey = requireApiKey();
+        const params = new URLSearchParams();
+        if (projectId) params.set("project_id", projectId);
+        if (pathPrefix) params.set("prefix", pathPrefix);
+        if (category) params.set("category", category);
+        const result = await agentGet(`/agent/v1/wiki/pages?${params}`, agentApiKey);
+        return json(result);
+      } catch (err: any) {
+        // Fallback to direct Supabase if agent unavailable
+        let query = sb
+          .from("pages")
+          .select("id, path, title, tags, word_count, is_auto, updated_at, content")
+          .eq("user_id", userId)
+          .order("updated_at", { ascending: false });
+        if (projectId) query = query.eq("project_id", projectId);
+        if (pathPrefix) query = query.like("path", `${pathPrefix}%`);
+        const { data, error } = await query;
+        if (error) throw new Error(error.message);
+        const pages = (data || []).map((p: any) => ({
+          ...p,
+          content: p.content?.length > 200 ? p.content.slice(0, 200) + "..." : p.content,
+        }));
+        return json({ pages, count: pages.length });
+      }
     }
 
     case "wiki_read": {
       const pagePath = args.path as string;
       const projectId = args.project_id as string | undefined;
+      const sharedProjectId = args.shared_project_id as string | undefined;
 
-      // Try exact path first
-      let { data, error } = await sb
-        .from("pages")
-        .select("*")
-        .eq("user_id", userId)
-        .eq("path", pagePath)
-        .maybeSingle();
-
-      // If not found and project_id given, try with project prefix
-      if (!data && projectId) {
-        let projectSlug = projectId.slice(0, 8);
-        try {
-          const { data: proj } = await sb.from("projects").select("name").eq("id", projectId).single();
-          if (proj?.name) projectSlug = slugify(proj.name);
-        } catch { /* use id prefix */ }
-        const prefixedPath = `projects/${projectSlug}/${pagePath}`;
-        const result = await sb
-          .from("pages")
-          .select("*")
-          .eq("user_id", userId)
-          .eq("path", prefixedPath)
-          .maybeSingle();
-        data = result.data;
-        error = result.error;
+      try {
+        const { requireApiKey, agentGet } = await import("./agent-proxy.js");
+        const agentApiKey = requireApiKey();
+        const params = new URLSearchParams();
+        if (projectId) params.set("project_id", projectId);
+        if (sharedProjectId) params.set("shared_project_id", sharedProjectId);
+        const result = await agentGet(`/agent/v1/wiki/pages/${encodeURIComponent(pagePath)}?${params}`, agentApiKey);
+        return json({ page: result });
+      } catch (err: any) {
+        // Fallback to direct Supabase if agent unavailable
+        if (sharedProjectId) {
+          const { data: proj } = await sb.from("projects").select("id, is_public").eq("id", sharedProjectId).maybeSingle();
+          if (!proj?.is_public) throw new Error("Project not found or not public");
+          const { data: sharedPage } = await sb.from("pages").select("*").eq("project_id", sharedProjectId).eq("path", pagePath).maybeSingle();
+          if (!sharedPage) throw new Error(`Page not found in shared project: ${pagePath}`);
+          return json({ page: sharedPage });
+        }
+        let { data, error } = await sb.from("pages").select("*").eq("user_id", userId).eq("path", pagePath).maybeSingle();
+        if (!data && projectId) {
+          let projectSlug = projectId.slice(0, 8);
+          try { const { data: proj } = await sb.from("projects").select("name").eq("id", projectId).single(); if (proj?.name) projectSlug = slugify(proj.name); } catch { /* use id prefix */ }
+          const result = await sb.from("pages").select("*").eq("user_id", userId).eq("path", `projects/${projectSlug}/${pagePath}`).maybeSingle();
+          data = result.data; error = result.error;
+        }
+        if (error || !data) throw new Error(`Page not found: ${pagePath}`);
+        return json({ page: data });
       }
-
-      if (error || !data) throw new Error(`Page not found: ${pagePath}`);
-      return json({ page: data });
     }
 
     case "wiki_write": {
@@ -2366,101 +2370,63 @@ export async function handleTool(
       const writeTags = (args.tags as string[]) || [];
       const mode = (args.mode as string) || "replace";
 
-      const wordCount = content.split(/\s+/).filter(Boolean).length;
-
-      // Check if page exists by (user_id, path)
-      const { data: existing } = await sb
-        .from("pages")
-        .select("id, content")
-        .eq("user_id", userId)
-        .eq("path", pagePath)
-        .maybeSingle();
-
-      if (existing) {
-        const newContent = mode === "append"
-          ? existing.content + "\n\n" + content
-          : content;
-        const newWordCount = newContent.split(/\s+/).filter(Boolean).length;
-
-        const { error } = await sb
-          .from("pages")
-          .update({
-            title,
-            content: newContent,
-            tags: writeTags.length > 0 ? writeTags : undefined,
-            project_id: projectId || undefined,
-            word_count: newWordCount,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", existing.id);
-
-        if (error) throw new Error(error.message);
-        return json({ action: "updated", path: pagePath, mode, word_count: newWordCount });
-      } else {
-        const { error } = await sb
-          .from("pages")
-          .insert({
-            user_id: userId,
-            path: pagePath,
-            title,
-            content,
-            tags: writeTags,
-            project_id: projectId || null,
-            word_count: wordCount,
-            is_auto: false,
-          });
-
-        if (error) throw new Error(error.message);
-        return json({ action: "created", path: pagePath, word_count: wordCount });
+      try {
+        const { requireApiKey, agentPost } = await import("./agent-proxy.js");
+        const agentApiKey = requireApiKey();
+        const result = await agentPost("/agent/v1/wiki/pages", {
+          project_id: projectId,
+          path: pagePath,
+          title,
+          content,
+          tags: writeTags.length > 0 ? writeTags : undefined,
+          append: mode === "append",
+        }, agentApiKey);
+        return json(result);
+      } catch (err: any) {
+        // Fallback to direct Supabase if agent unavailable
+        const wordCount = content.split(/\s+/).filter(Boolean).length;
+        const { data: existing } = await sb.from("pages").select("id, content").eq("user_id", userId).eq("path", pagePath).maybeSingle();
+        if (existing) {
+          const newContent = mode === "append" ? existing.content + "\n\n" + content : content;
+          const newWordCount = newContent.split(/\s+/).filter(Boolean).length;
+          const { error } = await sb.from("pages").update({ title, content: newContent, tags: writeTags.length > 0 ? writeTags : undefined, project_id: projectId || undefined, word_count: newWordCount, updated_at: new Date().toISOString() }).eq("id", existing.id);
+          if (error) throw new Error(error.message);
+          return json({ action: "updated", path: pagePath, mode, word_count: newWordCount });
+        } else {
+          const { error } = await sb.from("pages").insert({ user_id: userId, path: pagePath, title, content, tags: writeTags, project_id: projectId || null, word_count: wordCount, is_auto: false });
+          if (error) throw new Error(error.message);
+          return json({ action: "created", path: pagePath, word_count: wordCount });
+        }
       }
     }
 
     case "wiki_search": {
       const query = args.query as string;
       const projectId = args.project_id as string | undefined;
-      const pathPrefix = args.path_prefix as string | undefined;
       const limit = (args.limit as number) || 10;
-      const searchTerm = query.slice(0, 200);
 
-      // Title matches first
-      let titleQ = sb
-        .from("pages")
-        .select("id, path, title, tags, content, word_count, updated_at")
-        .eq("user_id", userId)
-        .ilike("title", `%${searchTerm}%`)
-        .order("updated_at", { ascending: false })
-        .limit(limit);
-
-      if (projectId) titleQ = titleQ.eq("project_id", projectId);
-      if (pathPrefix) titleQ = titleQ.like("path", `${pathPrefix}%`);
-      const { data: titleData } = await titleQ;
-      const titleIds = new Set((titleData || []).map((p: any) => p.id));
-
-      // Content matches
-      let contentQ = sb
-        .from("pages")
-        .select("id, path, title, tags, content, word_count, updated_at")
-        .eq("user_id", userId)
-        .ilike("content", `%${searchTerm}%`)
-        .order("updated_at", { ascending: false })
-        .limit(limit);
-
-      if (projectId) contentQ = contentQ.eq("project_id", projectId);
-      if (pathPrefix) contentQ = contentQ.like("path", `${pathPrefix}%`);
-      const { data: contentData } = await contentQ;
-
-      const pages: any[] = [...(titleData || [])];
-      for (const p of contentData || []) {
-        if (!titleIds.has(p.id)) pages.push(p);
+      try {
+        const { requireApiKey, agentGet } = await import("./agent-proxy.js");
+        const agentApiKey = requireApiKey();
+        const params = new URLSearchParams({ q: query, limit: String(limit) });
+        if (projectId) params.set("project_id", projectId);
+        const result = await agentGet(`/agent/v1/wiki/keyword-search?${params}`, agentApiKey);
+        return json(result);
+      } catch (err: any) {
+        // Fallback to direct Supabase if agent unavailable
+        const searchTerm = query.slice(0, 200);
+        let titleQ = sb.from("pages").select("id, path, title, tags, content, word_count, updated_at").eq("user_id", userId).ilike("title", `%${searchTerm}%`).order("updated_at", { ascending: false }).limit(limit);
+        if (projectId) titleQ = titleQ.eq("project_id", projectId);
+        const { data: titleData } = await titleQ;
+        const titleIds = new Set((titleData || []).map((p: any) => p.id));
+        let contentQ = sb.from("pages").select("id, path, title, tags, content, word_count, updated_at").eq("user_id", userId).ilike("content", `%${searchTerm}%`).order("updated_at", { ascending: false }).limit(limit);
+        if (projectId) contentQ = contentQ.eq("project_id", projectId);
+        const { data: contentData } = await contentQ;
+        const pages: any[] = [...(titleData || [])];
+        for (const p of contentData || []) { if (!titleIds.has(p.id)) pages.push(p); }
+        for (const p of pages) { if (p.content?.length > 300) p.content = p.content.slice(0, 300) + "..."; }
+        return json({ pages: pages.slice(0, limit), total: pages.length });
       }
-
-      for (const p of pages) {
-        if (p.content?.length > 300) {
-          p.content = p.content.slice(0, 300) + "...";
-        }
-      }
-
-      return json({ pages: pages.slice(0, limit), total: pages.length });
     }
 
     case "wiki_ingest": {

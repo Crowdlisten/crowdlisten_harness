@@ -20,6 +20,7 @@ export interface SkillPack {
   toolNames: string[];
   isVirtual?: boolean;       // true for SKILL.md packs (no tools, just content)
   skillMdPath?: string;      // path to SKILL.md for virtual packs
+  triggers?: string[];       // keywords for auto-activation suggestions
 }
 
 export interface SkillPackInfo {
@@ -61,22 +62,23 @@ const packs: Map<string, SkillPack> = new Map();
  */
 export function initializeRegistry(skillsDir: string): void {
   // Core — always on (discovery + knowledge base)
+  // Consolidated: wiki_* and ingest_folder absorbed into save/recall
   packs.set("core", {
     id: "core",
     name: "Core",
-    description: "Discovery + knowledge — manage skill packs, save/recall context, browse and edit pages",
-    toolNames: ["skills", "save", "recall", "ingest_folder", "wiki_list", "wiki_read", "wiki_write", "wiki_search", "wiki_ingest", "wiki_log"],
+    description: "Discovery + knowledge — manage skill packs, save/recall context with wiki pages, folder ingest, and semantic search",
+    toolNames: ["skills", "save", "recall"],
+    triggers: ["save", "remember", "recall", "knowledge", "context", "wiki", "page", "notes"],
   });
 
-  // Planning — task management (4 tools)
+  // Planning — task management (3 canonical tools)
+  // Consolidated: claim_task absorbed into list_tasks, execute_task/get_execution_status absorbed into complete_task
   packs.set("planning", {
     id: "planning",
     name: "Planning & Tasks",
     description: "Task board for agent coordination — create, claim, and complete tasks. Trigger remote agent execution.",
-    toolNames: [
-      "list_tasks", "create_task", "claim_task", "complete_task",
-      "execute_task", "get_execution_status",
-    ],
+    toolNames: ["list_tasks", "create_task", "complete_task"],
+    triggers: ["plan", "task", "milestone", "roadmap", "backlog", "kanban", "board", "execute"],
   });
 
   // Social listening (5 tools)
@@ -88,16 +90,17 @@ export function initializeRegistry(skillsDir: string): void {
       "search_content", "get_content_comments", "get_trending_content",
       "platform_status", "extract_url",
     ],
+    triggers: ["reddit", "twitter", "tiktok", "social", "platform", "trending", "youtube", "instagram"],
   });
 
-  // Audience analysis (3 tools)
+  // Audience analysis (1 canonical tool)
+  // Consolidated: cluster_opinions and extract_insights absorbed into analyze_content
   packs.set("audience-analysis", {
     id: "audience-analysis",
     name: "Audience Analysis",
-    description: "AI-powered content analysis, opinion clustering, and insight extraction.",
-    toolNames: [
-      "analyze_content", "cluster_opinions", "extract_insights",
-    ],
+    description: "AI-powered content analysis with opinion clustering and insight extraction.",
+    toolNames: ["analyze_content"],
+    triggers: ["analysis", "sentiment", "insight", "opinion", "audience", "cluster", "enrich"],
   });
 
   // ── Agent-Proxied Packs (proxy to agent.crowdlisten.com) ────────────
@@ -111,6 +114,7 @@ export function initializeRegistry(skillsDir: string): void {
       "run_analysis", "continue_analysis", "get_analysis",
       "list_analyses", "generate_specs",
     ],
+    triggers: ["analyze", "research", "question", "spec", "requirement", "feature"],
   });
 
   // Crowd Intelligence — context-enriched crowd research
@@ -119,22 +123,20 @@ export function initializeRegistry(skillsDir: string): void {
     name: "Crowd Intelligence",
     description: "Research what the crowd says about any topic — social listening with business context enrichment.",
     toolNames: ["crowd_research"],
+    triggers: ["crowd", "research", "investigate", "discover"],
   });
 
-  // Insight Compiler — synthesized feedback query (2 tools)
-  packs.set("insight-compiler", {
-    id: "insight-compiler",
-    name: "Insight Compiler",
-    description: "Search and retrieve synthesized user feedback from connected channels — themes, severity, evidence, and trends.",
-    toolNames: ["get_user_context", "get_recent_insights"],
-  });
+  // Insight Compiler — DELETED (2 tools absorbed into recall)
+  // get_user_context and get_recent_insights are now recall params
 
-  // Observations & Intelligence — agent-as-integration observation pipeline (4 tools)
+  // Observations & Intelligence (2 canonical tools + manage_entities)
+  // Consolidated: get_observation_feed and get_theme_insights absorbed into recall
   packs.set("observations", {
     id: "observations",
     name: "Observations & Intelligence",
-    description: "Submit observations from conversations, get theme insights, manage connectors. The agent-native integration — what one agent learns, every agent can query.",
-    toolNames: ["submit_observation", "get_observation_feed", "get_theme_insights", "setup_connector"],
+    description: "Submit observations from conversations and manage connectors. Query observation feeds and themes via recall.",
+    toolNames: ["submit_observation", "setup_connector", "manage_entities"],
+    triggers: ["observation", "connector", "entity", "competitor", "track", "signal"],
   });
 
   // ── Virtual SKILL.md Packs ────────────────────────────────────────────
@@ -249,4 +251,17 @@ export function getSkillMdContent(packId: string): string | null {
 export function isInsightsTool(name: string): boolean {
   const insightsToolNames = new Set(INSIGHTS_TOOLS.map((t: any) => t.name));
   return insightsToolNames.has(name);
+}
+
+/**
+ * Get pack trigger rules for suggestion matching.
+ * Returns array of { pack, triggers, description } for non-core, non-virtual packs.
+ */
+export function getPackTriggers(): Array<{ pack: string; triggers: string[]; description: string }> {
+  const result: Array<{ pack: string; triggers: string[]; description: string }> = [];
+  for (const p of packs.values()) {
+    if (p.id === "core" || p.isVirtual || !p.triggers?.length) continue;
+    result.push({ pack: p.id, triggers: p.triggers, description: p.description });
+  }
+  return result;
 }
