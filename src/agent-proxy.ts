@@ -5,6 +5,8 @@
  * Supports POST, GET, and SSE streaming endpoints.
  */
 
+import { loadAuth } from "./tools.js";
+
 const AGENT_BASE =
   process.env.CROWDLISTEN_AGENT_URL || "https://agent.crowdlisten.com";
 
@@ -12,17 +14,21 @@ const AGENT_BASE =
 
 /**
  * Returns the CROWDLISTEN_API_KEY or throws with a sign-in prompt.
+ * Priority: env var override → stored auth from ~/.crowdlisten/auth.json.
  * Login is free — `npx @crowdlisten/harness login` sets this up automatically.
  */
 export function requireApiKey(): string {
-  const key = process.env.CROWDLISTEN_API_KEY;
-  if (!key) {
-    throw new Error(
-      "Sign in to use this tool: npx @crowdlisten/harness login\n" +
-        "Login is free and auto-configures your agent."
-    );
-  }
-  return key;
+  const envKey = process.env.CROWDLISTEN_API_KEY;
+  if (envKey) return envKey;
+
+  const stored = loadAuth();
+  if (stored?.api_key) return stored.api_key;
+
+  throw new Error(
+    "Sign in to use this tool: npx @crowdlisten/harness login\n" +
+      "Login is free and auto-configures your agent.\n" +
+      "Or set CROWDLISTEN_API_KEY env var manually."
+  );
 }
 
 function headers(apiKey?: string): Record<string, string> {
@@ -74,6 +80,54 @@ export async function agentGet(
     const text = await res.text().catch(() => "");
     throw new Error(
       `Agent API error ${res.status} on GET ${path}: ${text || res.statusText}`
+    );
+  }
+
+  return res.json();
+}
+
+// ─── PUT ──────────────────────────────────────────────────────────────────
+
+export async function agentPut(
+  path: string,
+  body: Record<string, unknown>,
+  apiKey?: string
+): Promise<unknown> {
+  const url = `${AGENT_BASE}${path}`;
+  const res = await fetch(url, {
+    method: "PUT",
+    headers: headers(apiKey),
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Agent API error ${res.status} on PUT ${path}: ${text || res.statusText}`
+    );
+  }
+
+  return res.json();
+}
+
+// ─── PATCH ─────────────────────────────────────────────────────────────────
+
+export async function agentPatch(
+  path: string,
+  body: Record<string, unknown>,
+  apiKey?: string
+): Promise<unknown> {
+  const url = `${AGENT_BASE}${path}`;
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: headers(apiKey),
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Agent API error ${res.status} on PATCH ${path}: ${text || res.statusText}`
     );
   }
 

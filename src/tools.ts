@@ -583,11 +583,11 @@ export const TOOLS = [
 // ─── Status <-> Column mapping ────────────────────────────────────────────────
 
 export const STATUS_COLUMN: Record<string, string> = {
+  proposed: "Proposed",
   todo: "To Do",
   inprogress: "In Progress",
   inreview: "In Review",
   done: "Done",
-  cancelled: "Cancelled",
 };
 
 export async function getColumnByStatus(
