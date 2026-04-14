@@ -65,7 +65,7 @@ For remote access, use the HTTP transport:
 |---|---|---|
 | **Search social platforms** | Search Reddit, YouTube, TikTok, Twitter/X, Instagram, Xiaohongshu from one tool | Returns structured posts with engagement metrics, timestamps, and author info — same format regardless of platform |
 | **Compile organizational signal** | AI distills conversations into structured harnesses — themes, evidence, severity, and trends | AI groups comments by theme, scores sentiment, identifies competitive signals |
-| **Shared context layer** | Harnesses persist across agents and sessions — query via semantic search or browse directly | Your agent saves with `save`, searches with `wiki_search`, browses with `wiki_list`, ingests content with `wiki_ingest` |
+| **Shared context layer** | Harnesses persist across agents and sessions — query via semantic search or browse directly | Your agent saves with `save` and retrieves with `recall` (supports semantic search, browse, keyword search, and more) |
 | **Plan and track work** | Tasks, execution plans, progress tracking, server-side execution | Your agent claims tasks, drafts plans with assumptions and risks, logs progress, triggers agent execution and polls status |
 | **Run full analyses** | End-to-end crowd analysis with streaming results | `run_analysis` triggers the full pipeline on the backend; `continue_analysis` for follow-ups |
 | **From harnesses to specs** | Turn harnesses into implementation-ready specs with evidence citations and acceptance criteria | Specs include evidence citations, acceptance criteria, and confidence scores |
@@ -75,23 +75,26 @@ For remote access, use the HTTP transport:
 
 ![CrowdListen Pipeline — Raw Crowd Signals to Agent Delivery](docs/images/pipeline.jpg)
 
-Your agent starts with **8 core tools** and activates skill packs on demand (~28 tools total across all packs). No restart required — new tools appear instantly via `tools/list_changed`.
+Your agent starts with **3 core tools** and activates skill packs on demand (21 canonical tools total across all packs, plus 16 backward-compatible aliases). No restart required — new tools appear instantly via `tools/list_changed`.
 
-**Task Execution** — Trigger server-side AI agent execution (Amp, Claude Code, Codex, Gemini CLI) and poll progress via MCP. Calls `execute_task` to dispatch work and `get_execution_status` to track completion.
+**Task Execution** — Trigger server-side AI agent execution (Amp, Claude Code, Codex, Gemini CLI) and poll progress via MCP. Use `complete_task` with `execute: true` to dispatch work and `status: true` to track completion.
+
+**Observation Pipeline** — External agents, bots, and webhooks register as connectors, submit raw observations (feature requests, bugs, pain points, praise), and the pipeline auto-classifies and clusters them into themes with severity scoring and trend detection.
 
 ### Skill Packs
 
 | Pack | Tools | What it does |
 |------|:-----:|---|
-| **core** (always on) | 8 | Wiki knowledge base (save/wiki_*/skills), skill discovery |
+| **core** (always on) | 3 | Semantic recall, knowledge save, skill discovery |
 | **social-listening** | 5 | Search Reddit, TikTok, YouTube, Twitter, Instagram, Xiaohongshu |
-| **audience-analysis** | 3 | Opinion clustering, insight extraction, content analysis |
-| **planning** | 6 | Tasks, execution, progress tracking, server-side agent execution |
+| **audience-analysis** | 1 | Opinion clustering, insight extraction, content analysis |
+| **planning** | 3 | Tasks and progress tracking |
 | **analysis** | 5 | Run full analyses, generate specs from results |
 | **crowd-intelligence** | 1 | Async crowd research with job polling |
+| **observations** | 3 | Submit observations, manage connectors, track entities |
 
-Plus 9 **workflow packs** that deliver expert methodology via SKILL.md when activated:
-- knowledge-base, competitive-analysis, content-strategy, content-creator, data-storytelling, heuristic-evaluation, market-research-reports, user-stories, ux-researcher
+Plus 14 **workflow packs** that deliver expert methodology via SKILL.md when activated:
+- knowledge-base, competitive-analysis, content-strategy, content-creator, context-extraction, crowd-research, data-storytelling, entity-research, heuristic-evaluation, market-research-reports, multi-agent, spec-generation, user-stories, ux-researcher
 
 Full tool reference: **[docs/TOOLS.md](docs/TOOLS.md)**
 
@@ -103,20 +106,20 @@ Every agent interaction compounds knowledge. The unified `pages` table stores al
  save()          Supabase `pages`       ~/.crowdlisten/kb/
 ───────→  UNIQUE(user_id, path)  sync→  ├── notes/auth-approach.md
                                         ├── projects/cl/topics/...
- wiki_search()   ↑                      └── documents/thesis/ch1.md
+ recall()        ↑                      └── documents/thesis/ch1.md
 ←────────────────┘
  recall()        semantic search         watch / sync
- wiki_list()     browse by path          auto-sync local folders
+ recall(list)    browse by path          auto-sync local folders
 ```
 
 **How data flows:**
 
 1. **Save** — `save({ title, content, tags })` writes to the `pages` table. Pass `publish: { team_id }` to share with teammates.
 2. **Recall** — `recall({ query })` performs semantic search (pgvector cosine similarity) with keyword fallback. Filter by path prefix or tags.
-3. **Browse** — `wiki_list()` browses pages. `wiki_read(path)` reads a single page.
-4. **Search** — `wiki_search({ query })` performs full-text search across all pages.
-5. **Ingest** — `wiki_ingest({ url_or_text })` ingests external content into the knowledge base.
-6. **Log** — `wiki_log({ message })` appends timestamped log entries for decisions and progress.
+3. **Browse** — `recall({ list: true })` browses pages. `recall({ path })` reads a single page.
+4. **Search** — `recall({ query, mode: "keyword" })` performs full-text search across all pages.
+5. **Ingest** — `save({ analysis_id })` ingests an analysis into the knowledge base. `save({ folder })` bulk-imports a local folder.
+6. **Log** — `recall({ log: true })` returns timestamped log entries for decisions and progress.
 7. **Sync** — `npx @crowdlisten/harness sync ~/folder` syncs a local folder to pages. `watch` mode auto-syncs on file changes.
 
 **Path conventions:** `notes/` for standalone notes, `projects/{slug}/` for project-scoped content, `documents/` for ingested files, `decisions/` for architectural decisions.

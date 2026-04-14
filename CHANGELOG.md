@@ -5,11 +5,11 @@ All notable changes to the CrowdListen Harness.
 ## [Unreleased] - 2026-04-09
 
 ### Added
-- **Observations skill pack**: New `observations` pack with 4 tools for the observation intelligence pipeline
+- **Observations skill pack**: New `observations` pack with 3 canonical tools for the observation intelligence pipeline
 - **`submit_observation`** agent tool: Proxies to `POST /api/observations/submit` for agents to submit conversation observations
-- **`get_observation_feed`** agent tool: Proxies to `GET /api/observations/feed` for listing project observations with filters
-- **`get_theme_insights`** agent tool: Proxies to `GET /api/observations/themes` for retrieving clustered theme intelligence
 - **`setup_connector`** tool: Register a new observation connector via `POST /api/connectors`, returns API key for agent integration
+- **`manage_entities`** tool: Moved to observations pack — CRUD for tracked entities with project linking and entity-aware observation tracking
+- **`recall` observation modes**: Observation feed and theme intelligence are accessible via `recall` — pass `observations: true` (proxies to `GET /api/observations/feed`) or `themes: true` (proxies to `GET /api/observations/themes`). Backward-compatible aliases `get_observation_feed` and `get_theme_insights` route to `recall` with these flags set.
 
 ## [2.2.0] - 2026-04-08
 

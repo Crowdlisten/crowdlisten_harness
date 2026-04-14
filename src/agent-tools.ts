@@ -8,6 +8,8 @@
 import {
   agentPost,
   agentGet,
+  agentPut,
+  agentPatch,
   agentDelete,
   agentStream,
   requireApiKey,
@@ -259,6 +261,52 @@ export const AGENT_TOOLS = [
     },
   },
 
+  // ── Entity Tracking (1 tool) ──────────────────────────────────────────
+  {
+    name: "manage_entities",
+    description:
+      "[Entities] Manage tracked entities (companies, competitors, products). Actions: create, list, update, delete, add_product, link (to project), unlink, list_project, patch_config, trigger_research.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        action: {
+          type: "string",
+          enum: ["create", "list", "get", "update", "delete", "add_product", "link", "unlink", "list_project", "patch_config", "trigger_research"],
+          description: "Action to perform. patch_config: atomic merge into entity config JSONB. trigger_research: find entities due for research.",
+        },
+        entity_id: { type: "string", description: "Entity UUID (for get/update/delete/link/unlink)" },
+        project_id: { type: "string", description: "Project UUID (for link/unlink/list_project)" },
+        name: { type: "string", description: "Entity name (for create/add_product)" },
+        type: {
+          type: "string",
+          enum: ["own_company", "competitor", "product"],
+          description: "Entity type (for create). Products require parent_id.",
+        },
+        parent_id: { type: "string", description: "Parent entity UUID (for add_product or product creation)" },
+        url: { type: "string", description: "Company/product URL" },
+        keywords: {
+          type: "array",
+          items: { type: "string" },
+          description: "Search keywords for tracking across platforms",
+        },
+        platforms: {
+          type: "array",
+          items: { type: "string" },
+          description: "Platforms to track: reddit, twitter, youtube, tiktok, etc.",
+        },
+        official_channels: {
+          type: "object",
+          description: "Official channels: { blog_rss, twitter_handle, youtube_channel }",
+        },
+        config: {
+          type: "object",
+          description: "Entity config JSONB for patch_config or update. Keys: research_enabled (bool), research_interval_hours (number), last_research_at (ISO string), pending_research_job (string|null), research_failures (number). Null values unset keys.",
+        },
+      },
+      required: ["action"],
+    },
+  },
+
   // ── Task Execution (2 tools) ──────────────────────────────────────────
   {
     name: "execute_task",
@@ -299,6 +347,53 @@ export const AGENT_TOOLS = [
         process_id: { type: "string", description: "Process UUID from execute_task" },
       },
       required: ["process_id"],
+    },
+  },
+
+  // ── Knowledge Compilation (2 tools) ──────────────────────────────────
+  {
+    name: "compile_knowledge",
+    description:
+      "[Knowledge] Compile analyses into canonical topic pages with confidence scores. Merges findings, detects contradictions, ranks evidence. Auto-triggered after analysis, but can be called manually to force recompilation.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        project_id: { type: "string", description: "Project UUID" },
+        analysis_ids: {
+          type: "array",
+          items: { type: "string" },
+          description: "Specific analysis UUIDs to compile (default: all recent)",
+        },
+        force: {
+          type: "boolean",
+          description: "Force recompilation even if recently compiled (default: false)",
+        },
+      },
+      required: ["project_id"],
+    },
+  },
+  {
+    name: "list_topics",
+    description:
+      "[Knowledge] List compiled topics for a project. Returns topics with confidence scores, source counts, and staleness indicators. Use to see the project's compiled truth — the synthesized knowledge base built from all analyses.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        project_id: { type: "string", description: "Project UUID" },
+        min_confidence: {
+          type: "number",
+          description: "Minimum confidence threshold 0.0-1.0 (default: 0.0)",
+        },
+        stale_only: {
+          type: "boolean",
+          description: "Only return topics not updated in 7+ days (default: false)",
+        },
+        category: {
+          type: "string",
+          description: "Filter by category (default: topic)",
+        },
+      },
+      required: ["project_id"],
     },
   },
 
@@ -555,6 +650,87 @@ export async function handleAgentTool(
       return JSON.stringify(result, null, 2);
     }
 
+    // ── Entity Tracking ─────────────────────────────────
+    case "manage_entities": {
+      const action = args.action as string;
+
+      switch (action) {
+        case "create":
+        case "add_product": {
+          const body: Record<string, unknown> = {
+            name: args.name,
+            type: action === "add_product" ? "product" : (args.type || "competitor"),
+            parent_id: args.parent_id,
+            url: args.url,
+            keywords: args.keywords || [],
+            platforms: args.platforms || [],
+            official_channels: args.official_channels || {},
+          };
+          const result = await agentPost("/api/entities", body, apiKey);
+          return JSON.stringify(result, null, 2);
+        }
+        case "list": {
+          const result = await agentGet("/api/entities", apiKey);
+          return JSON.stringify(result, null, 2);
+        }
+        case "get": {
+          if (!args.entity_id) throw new Error("entity_id required for get");
+          const result = await agentGet(`/api/entities/${args.entity_id}`, apiKey);
+          return JSON.stringify(result, null, 2);
+        }
+        case "update": {
+          if (!args.entity_id) throw new Error("entity_id required for update");
+          const updates: Record<string, unknown> = {};
+          if (args.name) updates.name = args.name;
+          if (args.url) updates.url = args.url;
+          if (args.keywords) updates.keywords = args.keywords;
+          if (args.platforms) updates.platforms = args.platforms;
+          if (args.official_channels) updates.official_channels = args.official_channels;
+          if (args.config) updates.config = args.config;
+          const result = await agentPut(`/api/entities/${args.entity_id}`, updates, apiKey);
+          return JSON.stringify(result, null, 2);
+        }
+        case "delete": {
+          if (!args.entity_id) throw new Error("entity_id required for delete");
+          const result = await agentDelete(`/api/entities/${args.entity_id}`, apiKey);
+          return JSON.stringify(result, null, 2);
+        }
+        case "link": {
+          if (!args.entity_id || !args.project_id) throw new Error("entity_id and project_id required for link");
+          const result = await agentPost(`/api/entities/${args.entity_id}/link`, { project_id: args.project_id }, apiKey);
+          return JSON.stringify(result, null, 2);
+        }
+        case "unlink": {
+          if (!args.entity_id || !args.project_id) throw new Error("entity_id and project_id required for unlink");
+          const result = await agentDelete(`/api/entities/${args.entity_id}/link/${args.project_id}`, apiKey);
+          return JSON.stringify(result, null, 2);
+        }
+        case "list_project": {
+          if (!args.project_id) throw new Error("project_id required for list_project");
+          const result = await agentGet(`/api/entities/project/${args.project_id}`, apiKey);
+          return JSON.stringify(result, null, 2);
+        }
+        case "patch_config": {
+          if (!args.entity_id) throw new Error("entity_id required for patch_config");
+          if (!args.config) throw new Error("config object required for patch_config");
+          const result = await agentPatch(
+            `/api/entities/${args.entity_id}/config`,
+            { config: args.config },
+            apiKey
+          );
+          return JSON.stringify(result, null, 2);
+        }
+        case "trigger_research": {
+          const body: Record<string, unknown> = {};
+          if (args.entity_id) body.entity_id = args.entity_id;
+          const result = await agentPost("/api/entities/trigger-research", body, apiKey);
+          return JSON.stringify(result, null, 2);
+        }
+        default:
+          throw new Error(`Unknown manage_entities action: ${action}`);
+      }
+    }
+
     // ── Task Execution ────────────────────────────────────
     case "execute_task": {
       const body: Record<string, unknown> = {
@@ -587,6 +763,32 @@ export async function handleAgentTool(
     case "get_execution_status": {
       const result = await agentGet(
         `/agent/v1/kanban/processes/${args.process_id}`,
+        apiKey
+      );
+      return JSON.stringify(result, null, 2);
+    }
+
+    // ── Knowledge Compilation ─────────────────────────────
+    case "compile_knowledge": {
+      const result = await agentPost(
+        "/agent/v1/knowledge/compile",
+        {
+          project_id: args.project_id,
+          analysis_ids: args.analysis_ids,
+          force: args.force || false,
+        },
+        apiKey
+      );
+      return JSON.stringify(result, null, 2);
+    }
+
+    case "list_topics": {
+      const params = new URLSearchParams({ project_id: args.project_id as string });
+      if (args.min_confidence) params.set("min_confidence", String(args.min_confidence));
+      if (args.stale_only) params.set("stale_only", "true");
+      if (args.category) params.set("category", args.category as string);
+      const result = await agentGet(
+        `/agent/v1/knowledge/topics?${params}`,
         apiKey
       );
       return JSON.stringify(result, null, 2);

@@ -12,6 +12,7 @@ import { TikTokUrlUtils } from './core/utils/TikTokUrlUtils.js';
 import { InstagramUrlUtils } from './core/utils/InstagramUrlUtils.js';
 import { VisionExtractor } from './vision/VisionExtractor.js';
 import { HealthMonitor } from './core/health/HealthMonitor.js';
+import { requireApiKey, agentPost as _agentPost } from '../agent-proxy.js';
 
 // ---------- Types ----------
 
@@ -227,39 +228,11 @@ export async function healthCheck(
 }
 
 // ---------- Agent API Proxy ----------
-
-const AGENT_API_BASE = process.env.CROWDLISTEN_AGENT_URL || 'https://agent.crowdlisten.com';
-
-function requireApiKey(): string {
-  const apiKey = process.env.CROWDLISTEN_API_KEY;
-  if (!apiKey) {
-    throw new Error(
-      'Sign in to use this tool: npx @crowdlisten/harness login\n' +
-      'Login is free and auto-configures your agent.'
-    );
-  }
-  return apiKey;
-}
+// Uses shared requireApiKey (with stored-auth fallback) from agent-proxy.ts
 
 async function agentPost(path: string, body: Record<string, unknown>): Promise<any> {
   const apiKey = requireApiKey();
-  const url = `${AGENT_API_BASE}${path}`;
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error(`Agent API error (${response.status}): ${errorBody}`);
-  }
-
-  return response.json();
+  return _agentPost(path, body, apiKey);
 }
 
 // ---------- Analysis Handlers (all delegate to API) ----------

@@ -31,7 +31,7 @@ Auto-configures MCP for Claude Code, Cursor, Gemini CLI, Codex, OpenClaw, Amp.
 
 | Interface | Access | Best for |
 |-----------|--------|----------|
-| MCP stdio | `npx @crowdlisten/harness` — ~28 tools | Local agents |
+| MCP stdio | `npx @crowdlisten/harness` — 21 tools | Local agents |
 | MCP HTTP | `POST https://mcp.crowdlisten.com/mcp` | Remote agents, cloud |
 | REST | `POST https://mcp.crowdlisten.com/tools/{name}` | Non-MCP integrations |
 | OpenAPI | `GET https://mcp.crowdlisten.com/openapi.json` | Docs, code gen |
@@ -40,56 +40,51 @@ Auto-configures MCP for Claude Code, Cursor, Gemini CLI, Codex, OpenClaw, Amp.
 
 ## Progressive Disclosure
 
-You start with **8 tools**. Activate skill packs to unlock more:
+You start with **3 tools**. Activate skill packs to unlock more:
 
 ```
 skills({ action: "list" })                      → see available packs
-skills({ action: "activate", pack_id: "planning" }) → unlocks 6 task tools
+skills({ action: "activate", pack_id: "planning" }) → unlocks 3 task tools
 skills({ action: "activate", pack_id: "social-listening" }) → unlocks 5 social tools
 ```
 
 After activation, new tools appear automatically via `tools/list_changed`.
 
-## Always-On Tools (8)
+## Always-On Tools (3)
 
 - **skills**(action: "list"|"activate", pack_id?) — List all packs or activate one. For SKILL.md packs, returns workflow instructions.
-- **save**(title, content, tags?, project_id?, confidence?, publish?: { team_id }) — Save context to .md knowledge base. Pass `publish` to share with a team.
-- **wiki_list**(tag?, limit?) — Browse the knowledge base index with optional tag filter.
-- **wiki_read**(entry_id) — Read a single knowledge base entry by ID.
-- **wiki_write**(title, content, tags?) — Write or update a knowledge base entry directly.
-- **wiki_search**(query, limit?) — Full-text search across the knowledge base.
-- **wiki_ingest**(url_or_text, source?) — Ingest external content (URL or raw text) into the knowledge base.
-- **wiki_log**(message, tags?) — Append a timestamped log entry (for decisions, progress notes, session journals).
+- **save**(title, content, tags?, project_id?, path?, folder?, analysis_id?, publish?: { team_id }) — Save context to the `pages` table in Supabase. Also handles wiki page writes (`path`), folder ingestion (`folder`), and analysis ingest (`analysis_id`).
+- **recall**(query?, path?, list?, mode?, log?, recent?, context?, observations?, themes?, project_id?, tags?, limit?) — Retrieve from the knowledge base. Supports semantic search, keyword search, page read, browse, activity log, recent insights, observation feed, and clustered themes.
+
+Note: `wiki_list`, `wiki_read`, `wiki_write`, `wiki_search`, `wiki_log`, `wiki_ingest`, `ingest_folder`, `get_user_context`, `get_recent_insights`, `get_observation_feed`, and `get_theme_insights` are backward-compatible aliases that route to `save` or `recall` with appropriate parameters. They work when called but are hidden from `tools/list`.
 
 ## Skill Packs
 
 | Pack | Tools | Description |
 |------|-------|-------------|
-| **core** (always on) | 8 | Wiki knowledge base + skill discovery |
-| **planning** | 6 | Tasks, execution, progress tracking, server-side agent execution |
+| **core** (always on) | 3 | Semantic recall, knowledge save, skill discovery |
+| **planning** | 3 | Tasks and progress tracking |
 | **social-listening** | 5 | Search social platforms |
-| **audience-analysis** | 3 | AI analysis + opinion clustering |
+| **audience-analysis** | 1 | AI analysis + opinion clustering |
 | **analysis** | 5 | Full audience analyses + spec generation |
 | **crowd-intelligence** | 1 | Context-enriched crowd research |
+| **observations** | 3 | Submit observations, manage connectors, track entities |
 
-Plus: 9 native SKILL.md workflow packs (knowledge-base, competitive-analysis, content-creator, etc.)
+Plus: 14 native SKILL.md workflow packs (knowledge-base, competitive-analysis, content-creator, content-strategy, context-extraction, crowd-research, data-storytelling, entity-research, heuristic-evaluation, market-research-reports, multi-agent, spec-generation, user-stories, ux-researcher)
 
-## Planning Pack (6 tools)
+## Planning Pack (3 tools)
 
-- **list_tasks**(board_id?, status?, limit?, task_id?) — List board tasks, or pass `task_id` for full details of a single task.
+- **list_tasks**(board_id?, status?, limit?, task_id?, claim?) — List board tasks, get single task details, or pass `claim` to claim a task (moves to In Progress). Aliases: `claim_task` routes here.
 - **create_task**(title, description?, priority?) — Create task
-- **claim_task**(task_id, executor?, branch?) — Start work, get context
-- **complete_task**(task_id, summary?, progress?: true) — Mark done. Pass `progress: true` to log a progress note instead of completing.
-- **execute_task**(task_id, executor?) — Trigger server-side AI agent execution. Supported executors: amp, claude-code, codex, gemini-cli.
-- **get_execution_status**(execution_id) — Poll execution progress. Returns status (queued, running, completed, failed) and output when done.
+- **complete_task**(task_id, summary?, progress?, execute?, executor?, status?, process_id?) — Mark done, log progress, trigger server-side agent execution, or poll execution status. Pass `progress: true` to log a progress note. Pass `execute: true` to dispatch to an agent. Pass `status: true` to poll completion. Aliases: `execute_task` and `get_execution_status` route here.
 
 ### Task Execution Workflow
 
 ```
-claim_task → execute_task → get_execution_status (poll) → complete_task
+list_tasks (claim) → complete_task (execute) → complete_task (status, poll) → complete_task (done)
 ```
 
-Dispatch a claimed task to a server-side agent, poll until finished, then mark it complete. The executor runs on the backend — your local agent only needs to poll for results.
+Claim a task, dispatch it to a server-side agent, poll until finished, then mark it complete. The executor runs on the backend — your local agent only needs to poll for results.
 
 ## Social Listening Pack (5 tools)
 
@@ -101,11 +96,9 @@ Dispatch a claimed task to a server-side agent, poll until finished, then mark i
 
 Platforms: reddit, twitter, tiktok, instagram, youtube, moltbook
 
-## Audience Analysis Pack (3 tools)
+## Audience Analysis Pack (1 tool)
 
-- **analyze_content**(platform, contentId, analysisDepth?, enrichment?: true) — Sentiment, themes, tensions. Use analysisDepth: "deep" or "comprehensive" for full audience intelligence. Pass `enrichment: true` for intent/stance analysis.
-- **cluster_opinions**(platform, contentId, clusterCount?) — Opinion clustering
-- **extract_insights**(platform, contentId, categories?) — Pain points, feature requests
+- **analyze_content**(platform, contentId, analysisDepth?, enrichment?, cluster?, clusterCount?, extract?, categories?) — Sentiment, themes, tensions. Use `analysisDepth: "deep"` or `"comprehensive"` for full audience intelligence. Pass `enrichment: true` for intent/stance analysis. Pass `cluster: true` for opinion clustering. Pass `extract: true` for categorized insight extraction. Aliases: `cluster_opinions` and `extract_insights` route here.
 
 ## Crowd Intelligence Pack (1 tool)
 
@@ -143,34 +136,48 @@ Agent: crowd_research({ action: "status", job_id: "abc-123" })
 - **list_analyses**(project_id, limit?) — List analyses for a project.
 - **generate_specs**(project_id, analysis_id?, spec_type?) — Generate feature requests, user stories, acceptance criteria from analysis.
 
+## Observations Pack (3 tools)
+
+The observations pack enables agents to submit and query the continuous feedback intelligence pipeline. External agents, bots, and webhooks register as connectors, submit raw observations, and the pipeline auto-classifies them into themes. To query the observation feed or theme insights, use `recall` with `observations: true` or `themes: true` (aliases `get_observation_feed` and `get_theme_insights` also route there).
+
+- **submit_observation**(observations, project_id?) — Submit 1-50 observations from agent conversations. Each observation includes a type (feature_request, bug, pain_point, praise, question, competitive, general), content, and optional metadata. Auto-classified and clustered by the backend pipeline.
+- **setup_connector**(name, type?, project_id?) — Register a connector (agent, native_bot, or webhook) and receive an API key for submitting observations.
+- **manage_entities**(action, name?, type?, entity_id?, project_id?, ...) — CRUD for tracked entities (companies, competitors, products). Link entities to projects for entity-aware observation tracking.
+
 ## Knowledge Base
 
-The knowledge base is a compounding loop: every agent interaction can make it better. Saves accumulate, the wiki tools let agents browse, search, and ingest content, and research results get filed back. Over time the knowledge base becomes a rich starting point instead of a blank slate.
+The knowledge base is a compounding loop built on the unified `pages` table in Supabase with `UNIQUE(user_id, path)` identity — like a filesystem in the cloud. Every agent interaction can enrich it. Saves accumulate, the wiki tools let agents browse and search, and research results get filed back. Over time the knowledge base becomes a rich starting point instead of a blank slate.
 
 ### How data flows
 
 ```
- save()          Supabase              ~/.crowdlisten/context/
-───────→  memories table  ──render──→  ├── INDEX.md
-                                       ├── entries/a1b2c3d4.md
- wiki_search()   ↑                     └── topics/auth.md
-←────────────────┘
- wiki_list()                           wiki_ingest()
- browse index                          ingest external content
+ save()          Supabase `pages`       ~/.crowdlisten/kb/
+───────→  UNIQUE(user_id, path)  sync→  ├── notes/auth-approach.md
+                                        ├── projects/cl/topics/...
+ recall()       semantic search         └── documents/thesis/ch1.md
+ recall(list)   browse by path
+←────────────────┘                      watch / sync
+                                        auto-sync local folders
 ```
 
-1. **Save** — `save({ title, content, tags })` writes to Supabase and renders a `.md` file locally. Pass `publish: { team_id }` to share with teammates.
-2. **Browse** — `wiki_list()` browses the index. `wiki_read(entry_id)` reads a single entry.
-3. **Search** — `wiki_search({ query })` performs full-text search across all entries.
-4. **Write** — `wiki_write({ title, content, tags })` creates or updates an entry directly.
-5. **Ingest** — `wiki_ingest({ url_or_text })` ingests external content (URLs or raw text) into the knowledge base.
-6. **Log** — `wiki_log({ message, tags })` appends a timestamped log entry for decisions, progress notes, or session journals.
+1. **Save** — `save({ title, content, tags })` writes to the `pages` table in Supabase and renders a `.md` file locally. Pass `publish: { team_id }` to share with teammates.
+2. **Recall** — `recall({ query })` performs semantic search using pgvector cosine similarity with ILIKE keyword fallback. Filter by path prefix or tags.
+3. **Browse** — `recall({ list: true })` browses the index. `recall({ path })` reads a single page.
+4. **Search** — `recall({ query, mode: "keyword" })` performs full-text search across all entries.
+5. **Write to path** — `save({ path, title, content })` creates or updates a page at a specific path.
+6. **Ingest** — `save({ analysis_id })` ingests an analysis. `save({ folder })` bulk-imports a local folder.
+7. **Log** — `recall({ log: true })` returns timestamped log entries for decisions, progress notes, or session journals.
+8. **Sync** — `npx @crowdlisten/harness sync ~/folder` syncs a local folder to pages. `watch` mode auto-syncs on file changes.
 
 ### The compounding effect
 
-After every analysis or research task, the agent saves 2-3 key insights. The wiki tools let agents browse, search, and organize this knowledge. The next agent (or the same agent in a new session) starts with a rich knowledge base instead of a blank slate.
+After every analysis or research task, the agent saves key takeaways. The wiki and recall tools let agents browse, search, and organize knowledge semantically. The next agent (or the same agent in a new session) starts with a rich knowledge base instead of a blank slate.
 
-Supabase is the source of truth. The local `.md` folder is a read-only rendered cache. No sync conflicts, no merge issues.
+Supabase `pages` table is the source of truth. Local `.md` folders can be synced bidirectionally via the `watch` and `sync` CLI commands.
+
+### Path conventions
+
+Use consistent paths for organization: `notes/` for standalone notes, `projects/{slug}/` for project-scoped content, `documents/` for ingested files, `decisions/` for architectural decisions.
 
 ### Tag vocabulary
 
@@ -180,8 +187,8 @@ Use consistent tags so grouping works effectively: `decision`, `pattern`, `insig
 
 ```
 skills({ action: "activate", pack_id: "planning" })
-→ list_tasks → claim_task → wiki_search → execute_task
-→ get_execution_status (poll) → save → complete_task
+→ list_tasks → list_tasks (claim) → recall (search context)
+→ complete_task (execute) → complete_task (status, poll) → save → complete_task (done)
 ```
 
 ## Privacy
