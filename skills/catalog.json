@@ -15,7 +15,6 @@
       "competitors",
       "social",
       "conversations",
-      "crowdlisten",
       "positioning",
       "strategy",
       "market",
@@ -82,7 +81,6 @@
       "matching",
       "campaign",
       "tracking",
-      "crowdlisten",
       "calendar",
       "planning",
       "audience-validated",
@@ -116,6 +114,22 @@
       "warning",
       "message",
       "scoring"
+    ]
+  },
+  {
+    "id": "context-extraction",
+    "name": "context-extraction",
+    "description": "Extract structured context from chat transcripts — skills, decisions, patterns",
+    "keywords": [
+      "extract",
+      "structured",
+      "context",
+      "chat",
+      "transcripts",
+      "skills",
+      "decisions",
+      "patterns",
+      "extraction"
     ]
   },
   {
@@ -161,7 +175,6 @@
       "churn",
       "risk",
       "signals",
-      "crowdlisten",
       "experience",
       "improvement",
       "optimization",
@@ -184,6 +197,17 @@
       "segments",
       "heuristic",
       "evaluation"
+    ]
+  },
+  {
+    "id": "knowledge-base",
+    "name": "Knowledge Base",
+    "description": "",
+    "keywords": [
+      "knowledge",
+      "base",
+      "capture-compile-synthesize",
+      "loop"
     ]
   },
   {
@@ -210,6 +234,37 @@
     ]
   },
   {
+    "id": "multi-agent",
+    "name": "multi-agent",
+    "description": "Multi-agent coordination — register agents, discover capabilities, manage sessions",
+    "keywords": [
+      "multi-agent",
+      "coordination",
+      "register",
+      "agents",
+      "discover",
+      "capabilities",
+      "manage",
+      "sessions"
+    ]
+  },
+  {
+    "id": "spec-generation",
+    "name": "spec-generation",
+    "description": "Generate actionable product specs from crowd analysis results",
+    "keywords": [
+      "generate",
+      "actionable",
+      "product",
+      "specs",
+      "crowd",
+      "analysis",
+      "results",
+      "spec",
+      "generation"
+    ]
+  },
+  {
     "id": "user-stories",
     "name": "crowdlisten:user-stories",
     "description": "Turn social listening data into product decisions. JTBD extraction, feature demand scoring, persona generation, user story generation from real audience data.",
@@ -231,7 +286,6 @@
       "story",
       "real",
       "audience",
-      "crowdlisten",
       "planning",
       "roadmap",
       "prioritization",
@@ -267,6 +321,22 @@
       "experiences",
       "researcher",
       "designer"
+    ]
+  },
+  {
+    "id": "entity-research",
+    "name": "crowdlisten:entity-research",
+    "description": "Automated entity intelligence — runs crowd research for tracked entities, saves results to entity-scoped wiki pages with failure handling and scheduling state.",
+    "keywords": [
+      "entity",
+      "research",
+      "automated",
+      "intelligence",
+      "competitor",
+      "tracking",
+      "scheduled",
+      "wiki",
+      "monitoring"
     ]
   }
 ]
