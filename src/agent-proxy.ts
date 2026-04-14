@@ -31,6 +31,21 @@ export function requireApiKey(): string {
   );
 }
 
+/**
+ * Returns the Supabase access_token (JWT) for endpoints that use require_user() auth.
+ * Entity endpoints, analysis endpoints, and channel ingestion all expect a Supabase JWT,
+ * NOT a cl_live_* API key.
+ */
+export function requireAccessToken(): string {
+  const stored = loadAuth();
+  if (stored?.access_token) return stored.access_token;
+
+  throw new Error(
+    "Sign in to use this tool: npx @crowdlisten/harness login\n" +
+      "Login is free and auto-configures your agent."
+  );
+}
+
 function headers(apiKey?: string): Record<string, string> {
   const h: Record<string, string> = {
     "Content-Type": "application/json",
@@ -38,6 +53,57 @@ function headers(apiKey?: string): Record<string, string> {
   };
   if (apiKey) h["Authorization"] = `Bearer ${apiKey}`;
   return h;
+}
+
+// ─── Structured Error ─────────────────────────────────────────────────────
+
+/**
+ * GBrain-style structured error with actionable suggestion and docs link.
+ */
+export interface AgentApiError {
+  error: string;
+  suggestion: string;
+  docs: string;
+  status?: number;
+}
+
+function structuredError(status: number, path: string, text: string): AgentApiError {
+  // Parse upstream error if it's JSON
+  let message = text || `HTTP ${status}`;
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed.detail) {
+      message = typeof parsed.detail === "string" ? parsed.detail : JSON.stringify(parsed.detail);
+    } else if (parsed.error?.message) {
+      message = parsed.error.message;
+    }
+  } catch {
+    // plain text error
+  }
+
+  // Route-specific suggestions
+  const suggestions: Record<string, { suggestion: string; docs: string }> = {
+    "/api/observations/submit": {
+      suggestion: "Check your auth: use a connector API key (X-Api-Key header) or sign in via npx @crowdlisten/harness login",
+      docs: "https://crowdlisten.com/docs/setup",
+    },
+    "/api/agents/analyze": {
+      suggestion: "Sign in via npx @crowdlisten/harness login, or use an agent API key (cl_live_*)",
+      docs: "https://crowdlisten.com/docs/mcp",
+    },
+    "/agent/v1/content/embed": {
+      suggestion: "The embedding service may be temporarily unavailable. Recall will fall back to keyword search.",
+      docs: "https://crowdlisten.com/docs/knowledge",
+    },
+  };
+
+  const matchedRoute = Object.keys(suggestions).find((route) => path.startsWith(route));
+  const hint = matchedRoute ? suggestions[matchedRoute] : {
+    suggestion: "Check your authentication and try again. Run: npx @crowdlisten/harness login",
+    docs: "https://crowdlisten.com/docs/setup",
+  };
+
+  return { error: message, ...hint, status };
 }
 
 // ─── POST ──────────────────────────────────────────────────────────────────
@@ -56,9 +122,7 @@ export async function agentPost(
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(
-      `Agent API error ${res.status} on POST ${path}: ${text || res.statusText}`
-    );
+    throw new Error(JSON.stringify(structuredError(res.status, path, text)));
   }
 
   return res.json();
@@ -78,9 +142,7 @@ export async function agentGet(
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(
-      `Agent API error ${res.status} on GET ${path}: ${text || res.statusText}`
-    );
+    throw new Error(JSON.stringify(structuredError(res.status, path, text)));
   }
 
   return res.json();
@@ -102,9 +164,7 @@ export async function agentPut(
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(
-      `Agent API error ${res.status} on PUT ${path}: ${text || res.statusText}`
-    );
+    throw new Error(JSON.stringify(structuredError(res.status, path, text)));
   }
 
   return res.json();
@@ -126,9 +186,7 @@ export async function agentPatch(
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(
-      `Agent API error ${res.status} on PATCH ${path}: ${text || res.statusText}`
-    );
+    throw new Error(JSON.stringify(structuredError(res.status, path, text)));
   }
 
   return res.json();
@@ -148,9 +206,7 @@ export async function agentDelete(
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(
-      `Agent API error ${res.status} on DELETE ${path}: ${text || res.statusText}`
-    );
+    throw new Error(JSON.stringify(structuredError(res.status, path, text)));
   }
 
   return res.json();
@@ -190,9 +246,7 @@ export async function agentStream(
 
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      throw new Error(
-        `Agent API error ${res.status} on SSE ${path}: ${text || res.statusText}`
-      );
+      throw new Error(JSON.stringify(structuredError(res.status, path, text)));
     }
 
     // Read SSE stream

@@ -66,9 +66,9 @@ export function initializeRegistry(skillsDir: string): void {
   packs.set("core", {
     id: "core",
     name: "Core",
-    description: "Discovery + knowledge — manage skill packs, save/recall context with wiki pages, folder ingest, and semantic search",
-    toolNames: ["skills", "save", "recall"],
-    triggers: ["save", "remember", "recall", "knowledge", "context", "wiki", "page", "notes"],
+    description: "Discovery + knowledge — manage skill packs, save/recall context, compile knowledge, and list topics",
+    toolNames: ["skills", "save", "recall", "compile_knowledge", "list_topics"],
+    triggers: ["save", "remember", "recall", "knowledge", "context", "wiki", "page", "notes", "compile", "topics"],
   });
 
   // Planning — task management (3 canonical tools)
@@ -134,9 +134,9 @@ export function initializeRegistry(skillsDir: string): void {
   packs.set("observations", {
     id: "observations",
     name: "Observations & Intelligence",
-    description: "Submit observations from conversations and manage connectors. Query observation feeds and themes via recall.",
-    toolNames: ["submit_observation", "setup_connector", "manage_entities"],
-    triggers: ["observation", "connector", "entity", "competitor", "track", "signal"],
+    description: "Submit observations from conversations and manage entities. Query observation feeds and themes via recall.",
+    toolNames: ["submit_observation", "manage_entities"],
+    triggers: ["observation", "entity", "competitor", "track", "signal"],
   });
 
   // ── Virtual SKILL.md Packs ────────────────────────────────────────────

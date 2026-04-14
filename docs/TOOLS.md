@@ -1,26 +1,28 @@
 # Tools Reference
 
-Technical reference for all CrowdListen Harness MCP tools (21 canonical tools across 7 packs plus SKILL.md workflow packs). Organized by feature. Each tool lists its parameters, return shape, and code path.
+Technical reference for all CrowdListen Harness MCP tools (20 canonical tools across 7 packs plus SKILL.md workflow packs). Organized by feature. Each tool lists its parameters, return shape, and code path.
 
 **Consolidated tool surface (v3.0)**: 16 tools were absorbed into 5 expanded tools (`save`, `recall`, `analyze_content`, `list_tasks`, `complete_task`). Old tool names still work as backward-compatible aliases but are hidden from `tools/list`.
 
-**Skill pack system**: Tools are grouped into packs. Only the `core` pack is always active (3 tools). Call `skills({ action: "list" })` then `skills({ action: "activate", pack_id: "..." })` to unlock others. After activation, new tools appear instantly via `tools/list_changed`.
+**Skill pack system**: Tools are grouped into packs. Only the `core` pack is always active (5 tools). Call `skills({ action: "list" })` then `skills({ action: "activate", pack_id: "..." })` to unlock others. After activation, new tools appear instantly via `tools/list_changed`.
 
 **Auth model**: All tools authenticate via Supabase session token stored at `~/.crowdlisten/auth.json`. Sign in with `npx @crowdlisten/harness login`.
 
+**Error responses** (v2.3.0): All tool failures return structured errors with `error` (what happened), `suggestion` (what to do), and `docs` (link to relevant docs).
+
 ---
 
-## Canonical Tool Summary (21 tools)
+## Canonical Tool Summary (20 tools)
 
 | Pack | Tools | Count |
 |------|-------|-------|
-| Core (always active) | `skills`, `save`, `recall` | 3 |
+| Core (always active) | `skills`, `save`, `recall`, `compile_knowledge`, `list_topics` | 5 |
 | Planning & Tasks | `list_tasks`, `create_task`, `complete_task` | 3 |
 | Social Listening | `search_content`, `get_content_comments`, `get_trending_content`, `platform_status`, `extract_url` | 5 |
 | Audience Analysis | `analyze_content` | 1 |
 | Analysis Engine | `run_analysis`, `continue_analysis`, `get_analysis`, `list_analyses`, `generate_specs` | 5 |
 | Crowd Intelligence | `crowd_research` | 1 |
-| Observations | `submit_observation`, `setup_connector`, `manage_entities` | 3 |
+| Observations | `submit_observation`, `manage_entities` | 2 |
 
 ---
 
@@ -83,6 +85,27 @@ Search your knowledge base. Supports semantic search, keyword search, page readi
 | `limit` | No | Max results (default: 20) |
 
 **Routing logic**: `path` -> read page. `list` -> list pages. `log` -> activity log. `mode=keyword` -> keyword search. `recent` -> recent insights. `context` -> user context. `observations` -> observation feed. `themes` -> clustered themes. Default -> semantic search.
+
+### `compile_knowledge`
+
+Compile analyses into canonical topic pages with confidence scores. Merges findings, detects contradictions, ranks evidence.
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `project_id` | Yes | Project UUID |
+| `analysis_ids` | No | Specific analysis UUIDs to compile (default: all recent) |
+| `force` | No | Force recompilation even if recently compiled (default: false) |
+
+### `list_topics`
+
+List compiled topics for a project. Returns topics with confidence scores, source counts, and staleness indicators.
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `project_id` | Yes | Project UUID |
+| `min_confidence` | No | Minimum confidence threshold 0.0-1.0 (default: 0.0) |
+| `stale_only` | No | Only return topics not updated in 7+ days (default: false) |
+| `category` | No | Filter by category |
 
 ---
 
@@ -148,6 +171,8 @@ Search for posts and discussions across social platforms. Pass `type: "user"` wi
 | `type` | No | `"user"` for user content mode |
 | `userId` | No | User ID/username (required when `type: "user"`) |
 | `useVision` | No | Force vision extraction |
+
+**Response** (when `platform: "all"`): Includes `platforms_searched` (array of platform names that returned results) and `platforms_skipped` (array of `{ platform, reason }` for any platform that failed). Graceful degradation ensures results from available platforms are always returned even when some platforms are down.
 
 ### `get_content_comments`
 
@@ -291,35 +316,37 @@ Pack: `observations`
 
 ### `submit_observation`
 
-Submit observations from agent conversations. Auto-classified and clustered.
+Submit observations from agent conversations. Auto-classified and clustered into themes.
+
+Auth: Accepts user JWT (from `npx @crowdlisten/harness login`) or connector API key (`cl_obs_*`). JWT auth requires `project_id` in the request.
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
-| `observations` | Yes | Array of `{ content, source_platform?, observation_type?, metadata? }` (1-50) |
-
-### `setup_connector`
-
-Register a connector and receive an API key for submitting observations.
-
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `name` | Yes | Connector name |
-| `project_id` | Yes | Project UUID |
-| `connector_type` | No | `agent`, `native_bot`, `webhook` (default: `agent`) |
-| `platform` | No | Platform the connector operates on |
+| `observations` | Yes | Array of observation objects (1-50) |
+| `observations[].content` | Yes | The observation text (1-10000 chars) |
+| `observations[].source_platform` | No | Platform: slack, discord, reddit, etc. |
+| `observations[].observation_type` | No | `feature_request`, `bug_report`, `pain_point`, `praise`, `question`, `competitive_intel`, `general` |
+| `observations[].entity_id` | No | Entity UUID to tag this observation (from `manage_entities`) |
+| `observations[].signal_type` | No | `official` (company announcement) or `reception` (audience reaction) |
+| `observations[].metadata` | No | Optional metadata (author, channel, thread_id, etc.) |
+| `project_id` | No* | Project UUID (*required when using JWT auth, auto-set for connector auth) |
 
 ### `manage_entities`
 
-Manage tracked entities (companies, competitors, products).
+Manage tracked entities. Entities are auto-enriched with description, industry, and keywords via LLM + web search on creation.
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
-| `action` | Yes | `create`, `list`, `get`, `update`, `delete`, `add_product`, `link`, `unlink`, `list_project`, `patch_config`, `trigger_research` |
-| `entity_id` | No | Entity UUID (for get/update/delete/link/unlink) |
+| `action` | Yes | `create`, `list`, `get`, `update`, `delete`, `add_product`, `link`, `unlink`, `list_project`, `enrich`, `patch_config`, `trigger_research` |
+| `entity_id` | No | Entity UUID (for get/update/delete/link/unlink/enrich) |
 | `project_id` | No | Project UUID (for link/unlink/list_project) |
-| `name` | No | Entity name (for create/add_product) |
-| `type` | No | `own_company`, `competitor`, `product` (for create) |
-| *(see full schema in code)* | | |
+| `name` | No | Entity name (for create). Keywords/description are auto-enriched. |
+| `tags` | No | Freeform tags: `competitor`, `partner`, `ours`, `product`, `market`, etc. |
+| `url` | No | Company/product URL (helps enrichment accuracy) |
+| `keywords` | No | Search keywords (auto-populated by enrichment, can be overridden) |
+| `config` | No | Entity config JSONB for `patch_config` or `update` |
+
+**Enrichment**: On `create`, the system automatically searches the web and populates `description`, `industry`, `keywords`, and `suggested_tags`. Use `enrich` action to manually re-trigger enrichment. Entity `enrichment_status` can be: `pending`, `enriching`, `enriched`, `failed`.
 
 ---
 
@@ -352,11 +379,11 @@ The following old tool names still work when called by agents but are hidden fro
 
 | Pack ID | Name | Canonical Tools | Triggers |
 |---------|------|-----------------|----------|
-| `core` | Core | 3 (always active) | save, remember, recall, knowledge, context, wiki |
+| `core` | Core | 5 (always active) | save, remember, recall, knowledge, context, wiki, compile, topics |
 | `planning` | Planning & Tasks | 3 | plan, task, milestone, roadmap, backlog |
 | `social-listening` | Social Listening | 5 | reddit, twitter, tiktok, social, platform, trending |
 | `audience-analysis` | Audience Analysis | 1 | analysis, sentiment, insight, opinion, cluster |
 | `analysis` | Analysis Engine | 5 | analyze, research, question, spec, requirement |
 | `crowd-intelligence` | Crowd Intelligence | 1 | crowd, research, investigate |
-| `observations` | Observations | 3 | observation, connector, entity, competitor, track |
+| `observations` | Observations | 2 | observation, entity, competitor, track, signal |
 | *(virtual)* | SKILL.md workflow packs | 0 (content only) | -- |

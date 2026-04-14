@@ -63,11 +63,14 @@ For remote access, use the HTTP transport:
 
 | Capability | What it does | How it works |
 |---|---|---|
-| **Search social platforms** | Search Reddit, YouTube, TikTok, Twitter/X, Instagram, Xiaohongshu from one tool | Returns structured posts with engagement metrics, timestamps, and author info — same format regardless of platform |
-| **Compile organizational signal** | AI distills conversations into structured harnesses — themes, evidence, severity, and trends | AI groups comments by theme, scores sentiment, identifies competitive signals |
-| **Shared context layer** | Harnesses persist across agents and sessions — query via semantic search or browse directly | Your agent saves with `save` and retrieves with `recall` (supports semantic search, browse, keyword search, and more) |
-| **Plan and track work** | Tasks, execution plans, progress tracking, server-side execution | Your agent claims tasks, drafts plans with assumptions and risks, logs progress, triggers agent execution and polls status |
-| **Run full analyses** | End-to-end crowd analysis with streaming results | `run_analysis` triggers the full pipeline on the backend; `continue_analysis` for follow-ups |
+| **Search social platforms** | Search Reddit, YouTube, TikTok, Twitter/X, Instagram, Xiaohongshu from one tool | Returns structured posts with engagement metrics, timestamps, and author info — same format regardless of platform. When a platform is unavailable, results from other platforms still return with a `platforms_skipped` field explaining why. |
+| **Compile organizational signal** | AI distills conversations into structured harnesses — themes, evidence, severity, and trends | AI groups comments by theme, scores sentiment, identifies competitive signals. `compile_knowledge` merges findings across analyses, detects contradictions, and ranks evidence with confidence scores. |
+| **Shared context layer** | Harnesses persist across agents and sessions — query via semantic search or browse directly | Your agent saves with `save` and retrieves with `recall`. Semantic search uses pgvector cosine similarity with keyword fallback. Browse pages, filter by path or tags, read activity logs, and sync local folders. |
+| **Track entities** | Define companies, competitors, and products as tracked entities with keywords and aliases | `manage_entities` supports full CRUD plus project linking. Entity IDs flow into observations for attribution — see what the crowd says about each competitor. |
+| **Submit observations** | Agents and bots submit raw feedback (feature requests, bugs, pain points, praise) that auto-classify into themes | `submit_observation` accepts user JWT or connector API keys. Observations support `entity_id` for entity tagging and `signal_type` for official vs. reception signals. |
+| **Plan and track work** | Tasks, execution plans, progress tracking, server-side execution | Your agent claims tasks, drafts plans with assumptions and risks, logs progress, triggers agent execution (Amp, Claude Code, Codex, Gemini CLI) and polls status |
+| **Run full analyses** | End-to-end crowd analysis with streaming results | `run_analysis` triggers the full pipeline on the backend; `continue_analysis` streams parsed follow-up responses |
+| **Crowd research** | Async multi-platform research with job polling | `crowd_research` dispatches deep research across Reddit, Twitter, Xiaohongshu, Moltbook, and web — poll status until complete |
 | **From harnesses to specs** | Turn harnesses into implementation-ready specs with evidence citations and acceptance criteria | Specs include evidence citations, acceptance criteria, and confidence scores |
 | **Extract from any website** | Screenshot any URL and get structured data back | Vision mode sends screenshots to an LLM — works on forums, paywalled sites, anything with a URL |
 
@@ -75,23 +78,27 @@ For remote access, use the HTTP transport:
 
 ![CrowdListen Pipeline — Raw Crowd Signals to Agent Delivery](docs/images/pipeline.jpg)
 
-Your agent starts with **3 core tools** and activates skill packs on demand (21 canonical tools total across all packs, plus 16 backward-compatible aliases). No restart required — new tools appear instantly via `tools/list_changed`.
+Your agent starts with **5 core tools** and activates skill packs on demand (20 canonical tools total across all packs, plus 16 backward-compatible aliases). No restart required — new tools appear instantly via `tools/list_changed`.
 
 **Task Execution** — Trigger server-side AI agent execution (Amp, Claude Code, Codex, Gemini CLI) and poll progress via MCP. Use `complete_task` with `execute: true` to dispatch work and `status: true` to track completion.
 
-**Observation Pipeline** — External agents, bots, and webhooks register as connectors, submit raw observations (feature requests, bugs, pain points, praise), and the pipeline auto-classifies and clusters them into themes with severity scoring and trend detection.
+**Observation Pipeline** — External agents, bots, and webhooks register as connectors, submit raw observations (feature requests, bugs, pain points, praise), and the pipeline auto-classifies and clusters them into themes with severity scoring and trend detection. Observations can be tagged with `entity_id` to attribute feedback to specific companies or products.
+
+**Structured Errors** — Every tool failure returns `{ error, suggestion, docs }` so your agent knows what happened, what to do next, and where to find help.
+
+**Graceful Degradation** — When a platform is unavailable (missing API key, Playwright not installed), `search_content` returns results from available platforms and includes `platforms_skipped` explaining what's missing and why.
 
 ### Skill Packs
 
 | Pack | Tools | What it does |
 |------|:-----:|---|
-| **core** (always on) | 3 | Semantic recall, knowledge save, skill discovery |
-| **social-listening** | 5 | Search Reddit, TikTok, YouTube, Twitter, Instagram, Xiaohongshu |
-| **audience-analysis** | 1 | Opinion clustering, insight extraction, content analysis |
-| **planning** | 3 | Tasks and progress tracking |
-| **analysis** | 5 | Run full analyses, generate specs from results |
-| **crowd-intelligence** | 1 | Async crowd research with job polling |
-| **observations** | 3 | Submit observations, manage connectors, track entities |
+| **core** (always on) | 5 | Semantic recall, knowledge save, skill discovery, knowledge compilation, topic listing |
+| **social-listening** | 5 | Search Reddit, TikTok, YouTube, Twitter, Instagram, Xiaohongshu with structured results and engagement metrics |
+| **audience-analysis** | 1 | Opinion clustering, insight extraction, content analysis with configurable depth |
+| **planning** | 3 | Create tasks, list and filter tasks, mark complete with progress logging and agent execution |
+| **analysis** | 5 | Run full analyses, continue with follow-ups, retrieve results, list history, generate specs |
+| **crowd-intelligence** | 1 | Async multi-platform crowd research with job polling |
+| **observations** | 2 | Submit entity-tagged observations from agents/bots, manage tracked entities (companies, competitors, products) |
 
 Plus 14 **workflow packs** that deliver expert methodology via SKILL.md when activated:
 - knowledge-base, competitive-analysis, content-strategy, content-creator, context-extraction, crowd-research, data-storytelling, entity-research, heuristic-evaluation, market-research-reports, multi-agent, spec-generation, user-stories, ux-researcher
@@ -118,13 +125,15 @@ Every agent interaction compounds knowledge. The unified `pages` table stores al
 2. **Recall** — `recall({ query })` performs semantic search (pgvector cosine similarity) with keyword fallback. Filter by path prefix or tags.
 3. **Browse** — `recall({ list: true })` browses pages. `recall({ path })` reads a single page.
 4. **Search** — `recall({ query, mode: "keyword" })` performs full-text search across all pages.
-5. **Ingest** — `save({ analysis_id })` ingests an analysis into the knowledge base. `save({ folder })` bulk-imports a local folder.
-6. **Log** — `recall({ log: true })` returns timestamped log entries for decisions and progress.
-7. **Sync** — `npx @crowdlisten/harness sync ~/folder` syncs a local folder to pages. `watch` mode auto-syncs on file changes.
+5. **Compile** — `compile_knowledge({ project_id })` merges analyses into canonical topic pages with confidence scores.
+6. **Topics** — `list_topics({ project_id })` shows compiled topics with staleness indicators.
+7. **Ingest** — `save({ analysis_id })` ingests an analysis into the knowledge base. `save({ folder })` bulk-imports a local folder.
+8. **Log** — `recall({ log: true })` returns timestamped log entries for decisions and progress.
+9. **Sync** — `npx @crowdlisten/harness sync ~/folder` syncs a local folder to pages. `watch` mode auto-syncs on file changes.
 
 **Path conventions:** `notes/` for standalone notes, `projects/{slug}/` for project-scoped content, `documents/` for ingested files, `decisions/` for architectural decisions.
 
-**The compounding effect:** After every analysis or research task, the agent saves key takeaways. The wiki and recall tools let agents browse, search, and organize knowledge semantically. The next agent starts with a rich knowledge base instead of a blank slate.
+**The compounding effect:** After every analysis or research task, the agent saves key takeaways. The recall tool lets agents browse, search, and organize knowledge semantically. `compile_knowledge` synthesizes multiple analyses into canonical topic pages with ranked evidence and confidence scores. The next agent starts with a rich knowledge base instead of a blank slate.
 
 Supabase `pages` table is the source of truth. Local `.md` folders can be synced bidirectionally via the `watch` and `sync` CLI commands.
 
@@ -132,11 +141,17 @@ Supabase `pages` table is the source of truth. Local `.md` folders can be synced
 
 | Platform | Setup | Notes |
 |---|---|---|
-| Reddit | None | Works immediately |
-| TikTok, Instagram, Xiaohongshu | `npx playwright install chromium` | Browser-based extraction |
-| Twitter/X | `TWITTER_USERNAME` + `TWITTER_PASSWORD` in `.env` | Credential-based |
+| Reddit | None | Works immediately — search, trending, comments |
+| TikTok | `npx playwright install chromium` | Browser-based extraction via API interception |
+| Instagram | `npx playwright install chromium` | Browser-based extraction via API interception |
+| Xiaohongshu | `npx playwright install chromium` | Browser-based extraction via API interception |
+| Twitter/X | `TWITTER_USERNAME` + `TWITTER_PASSWORD` in `.env` | Works without login for public content; credentials enable additional features |
 | YouTube | `YOUTUBE_API_KEY` in `.env` | API key required |
-| Vision mode (any URL) | Any one of: `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, or `OPENAI_API_KEY` | Screenshots + LLM extraction |
+| Moltbook | `MOLTBOOK_API_KEY` in `.env` | API key required |
+| Web/Exa | None (agent-side) | Semantic search across forums, news, blogs — handled by agent backend |
+| Vision mode (any URL) | Any one of: `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, or `OPENAI_API_KEY` | Screenshots + LLM extraction — works on paywalled sites, forums, anything |
+
+When a platform is unavailable, `search_content` with `platform: "all"` gracefully degrades — returning results from available platforms and a `platforms_skipped` field listing what's missing and why.
 
 ### Supported Agents
 

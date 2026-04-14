@@ -1,6 +1,6 @@
 {
   "name": "@crowdlisten/harness",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Shared context for AI agents — structured harnesses from conversations, feedback, and decisions, queryable via MCP",
   "type": "module",
   "bin": {

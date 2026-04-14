@@ -218,12 +218,19 @@ export const AGENT_TOOLS = [
                 enum: ["feature_request", "bug_report", "pain_point", "praise", "question", "competitive_intel", "general"],
                 description: "Type of observation (default: general)",
               },
+              entity_id: { type: "string", description: "Entity UUID to tag this observation (from manage_entities)" },
+              signal_type: {
+                type: "string",
+                enum: ["official", "reception"],
+                description: "Signal type: 'official' = company announcement, 'reception' = audience reaction",
+              },
               metadata: { type: "object", description: "Optional metadata (author, channel, thread_id, etc.)" },
             },
             required: ["content"],
           },
           description: "1-50 observations to submit",
         },
+        project_id: { type: "string", description: "Project UUID (required for JWT auth, auto-set for connector auth)" },
       },
       required: ["observations"],
     },
@@ -265,29 +272,36 @@ export const AGENT_TOOLS = [
   {
     name: "manage_entities",
     description:
-      "[Entities] Manage tracked entities (companies, competitors, products). Actions: create, list, update, delete, add_product, link (to project), unlink, list_project, patch_config, trigger_research.",
+      "[Entities] Manage tracked entities. New entities start with enrichment_status 'pending' — use the entity-research skill to enrich them with description, industry, and keywords via web search. Actions: create, list, update, delete, add_product, link (to project), unlink, list_project, enrich (manual fallback), patch_config, trigger_research.",
     inputSchema: {
       type: "object" as const,
       properties: {
         action: {
           type: "string",
-          enum: ["create", "list", "get", "update", "delete", "add_product", "link", "unlink", "list_project", "patch_config", "trigger_research"],
-          description: "Action to perform. patch_config: atomic merge into entity config JSONB. trigger_research: find entities due for research.",
+          enum: ["create", "list", "get", "update", "delete", "add_product", "link", "unlink", "list_project", "enrich", "patch_config", "trigger_research"],
+          description: "Action to perform. enrich: trigger auto-enrichment for an entity. patch_config: atomic merge into entity config JSONB. trigger_research: find entities due for research.",
         },
-        entity_id: { type: "string", description: "Entity UUID (for get/update/delete/link/unlink)" },
+        entity_id: { type: "string", description: "Entity UUID (for get/update/delete/link/unlink/enrich)" },
         project_id: { type: "string", description: "Project UUID (for link/unlink/list_project)" },
         name: { type: "string", description: "Entity name (for create/add_product)" },
-        type: {
-          type: "string",
-          enum: ["own_company", "competitor", "product"],
-          description: "Entity type (for create). Products require parent_id.",
+        tags: {
+          type: "array",
+          items: { type: "string" },
+          description: "Freeform tags: 'competitor', 'partner', 'ours', 'product', 'market', etc.",
         },
-        parent_id: { type: "string", description: "Parent entity UUID (for add_product or product creation)" },
-        url: { type: "string", description: "Company/product URL" },
+        parent_id: { type: "string", description: "Parent entity UUID (for add_product or product hierarchy)" },
+        url: { type: "string", description: "Company/product URL (helps enrichment accuracy)" },
+        description: { type: "string", description: "What the entity does (1-2 factual sentences, for update/enrichment)" },
+        industry: { type: "string", description: "Industry classification, e.g. 'Cybersecurity', 'Developer Tools' (for update/enrichment)" },
+        enrichment_status: {
+          type: "string",
+          enum: ["pending", "enriching", "enriched", "failed"],
+          description: "Enrichment lifecycle status (for update). Set to 'enriched' after populating description/industry/keywords.",
+        },
         keywords: {
           type: "array",
           items: { type: "string" },
-          description: "Search keywords for tracking across platforms",
+          description: "Search keywords for social listening (8-15 terms: brand names, handles, product names)",
         },
         platforms: {
           type: "array",
@@ -435,10 +449,11 @@ export async function handleAgentTool(
     }
 
     case "continue_analysis": {
-      const result = await agentPost(
+      const result = await agentStream(
         `/agent/v1/analysis/${args.analysis_id}/continue`,
         { question: args.question },
-        apiKey
+        apiKey,
+        180_000 // 3 min timeout (same as run_analysis)
       );
       return JSON.stringify(result, null, 2);
     }
@@ -618,9 +633,11 @@ export async function handleAgentTool(
 
     // ── Observations & Intelligence ────────────────────────
     case "submit_observation": {
+      const body: Record<string, unknown> = { observations: args.observations };
+      if (args.project_id) body.project_id = args.project_id;
       const result = await agentPost(
         "/api/observations/submit",
-        { observations: args.observations },
+        body,
         apiKey
       );
       return JSON.stringify(result, null, 2);
@@ -659,13 +676,19 @@ export async function handleAgentTool(
         case "add_product": {
           const body: Record<string, unknown> = {
             name: args.name,
-            type: action === "add_product" ? "product" : (args.type || "competitor"),
+            tags: args.tags || [],
             parent_id: args.parent_id,
             url: args.url,
             keywords: args.keywords || [],
             platforms: args.platforms || [],
             official_channels: args.official_channels || {},
           };
+          // Legacy: if type is passed, add to tags for backward compat
+          if (action === "add_product") {
+            const tags = (body.tags as string[]) || [];
+            if (!tags.includes("product")) tags.push("product");
+            body.tags = tags;
+          }
           const result = await agentPost("/api/entities", body, apiKey);
           return JSON.stringify(result, null, 2);
         }
@@ -683,11 +706,20 @@ export async function handleAgentTool(
           const updates: Record<string, unknown> = {};
           if (args.name) updates.name = args.name;
           if (args.url) updates.url = args.url;
+          if (args.description) updates.description = args.description;
+          if (args.industry) updates.industry = args.industry;
+          if (args.enrichment_status) updates.enrichment_status = args.enrichment_status;
           if (args.keywords) updates.keywords = args.keywords;
+          if (args.tags) updates.tags = args.tags;
           if (args.platforms) updates.platforms = args.platforms;
           if (args.official_channels) updates.official_channels = args.official_channels;
           if (args.config) updates.config = args.config;
           const result = await agentPut(`/api/entities/${args.entity_id}`, updates, apiKey);
+          return JSON.stringify(result, null, 2);
+        }
+        case "enrich": {
+          if (!args.entity_id) throw new Error("entity_id required for enrich");
+          const result = await agentPost(`/api/entities/${args.entity_id}/enrich`, {}, apiKey);
           return JSON.stringify(result, null, 2);
         }
         case "delete": {

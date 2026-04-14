@@ -82,7 +82,7 @@ export async function provisionApiKey(accessToken: string): Promise<string | nul
       },
       body: JSON.stringify({
         name: "harness-auto",
-        scopes: ["analysis", "research", "context"],
+        scopes: ["*"],
       }),
       signal: AbortSignal.timeout(10_000),
     });
@@ -199,11 +199,6 @@ export function getAgentConfigs(): AgentConfig[] {
       configPath: path.join(home, ".codex", "config.toml"),
       mcpKey: "mcp_servers",
       cliInstall: "codex mcp add crowdlisten -- npx -y @crowdlisten/harness",
-    },
-    {
-      name: "OpenClaw",
-      configPath: path.join(home, ".openclaw", "openclaw.json"),
-      mcpKey: "mcpServers",
     },
     {
       name: "Amp",

@@ -24,6 +24,7 @@ import * as http from "http";
 import * as crypto from "crypto";
 import * as path from "path";
 import { fileURLToPath } from "url";
+import { hostname, platform, release } from "os";
 
 import {
   loadAuth,
@@ -34,6 +35,7 @@ import {
   autoInstallMcp,
   handleTool,
   provisionApiKey,
+  detectExecutor,
   TOOLS,
   MCP_ENTRY,
   AUTH_FILE,
@@ -446,6 +448,81 @@ REMOTE ACCESS:
 async function startMcpServer() {
   const { supabase: sb, userId } = await getAuthedClient();
 
+  // ── Agent Connection Registration ──────────────────────────────────────────
+  // Adapted from agent-bridge/cli.js: register in agent_connections so the
+  // frontend knows an MCP agent is online.
+  let connectionId: string | null = null;
+  let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+
+  const executor = detectExecutor();
+  const agentName = `${hostname()} (${executor.toLowerCase()})`;
+  const machineInfo = {
+    hostname: hostname(),
+    platform: platform(),
+    release: release(),
+    node: process.version,
+    transport: "stdio",
+  };
+
+  try {
+    // Check for existing connection for this user + executor
+    const { data: existing } = await sb
+      .from("agent_connections")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("executor", executor)
+      .maybeSingle();
+
+    if (existing) {
+      const { data, error } = await sb
+        .from("agent_connections")
+        .update({
+          status: "online",
+          agent_name: agentName,
+          machine_info: machineInfo,
+          last_heartbeat_at: new Date().toISOString(),
+        })
+        .eq("id", existing.id)
+        .select("id")
+        .single();
+      if (error) throw error;
+      connectionId = data.id;
+    } else {
+      const { data, error } = await sb
+        .from("agent_connections")
+        .insert({
+          user_id: userId,
+          executor,
+          agent_name: agentName,
+          status: "online",
+          machine_info: machineInfo,
+          last_heartbeat_at: new Date().toISOString(),
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+      connectionId = data.id;
+    }
+
+    console.error(`🔌 Agent registered: ${agentName} (${connectionId})`);
+
+    // 30-second heartbeat
+    heartbeatTimer = setInterval(async () => {
+      try {
+        await sb
+          .from("agent_connections")
+          .update({ last_heartbeat_at: new Date().toISOString() })
+          .eq("id", connectionId!);
+      } catch {
+        // Non-fatal — heartbeat failure doesn't crash the server
+      }
+    }, 30_000);
+  } catch (err: any) {
+    // Non-fatal — agent connection registration failure shouldn't prevent MCP from working
+    console.error(`⚠️  Agent registration failed: ${err?.message || err}`);
+    console.error("   MCP server will still work, but frontend won't show agent as connected.");
+  }
+
   // Initialize the skill pack registry with all tool definitions
   initializeRegistry(SKILLS_DIR);
   registerTools(TOOLS);
@@ -617,9 +694,24 @@ async function startMcpServer() {
     }
   });
 
-  // Graceful shutdown
+  // Graceful shutdown — set agent offline + cleanup
   const cleanup = async () => {
     console.error("[Shutdown] Cleaning up...");
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+    if (connectionId) {
+      try {
+        await sb
+          .from("agent_connections")
+          .update({
+            status: "offline",
+            last_heartbeat_at: new Date().toISOString(),
+          })
+          .eq("id", connectionId);
+        console.error("🔌 Agent disconnected");
+      } catch {
+        // Best effort — process is exiting
+      }
+    }
     await cleanupInsights();
     process.exit(0);
   };

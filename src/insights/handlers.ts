@@ -122,12 +122,60 @@ export async function searchContent(service: UnifiedSocialMediaService, args: Se
   }
 
   if (platform === 'all') {
-    const allResults = await service.getCombinedSearchResults(query, limit);
-    return { platform: 'combined', query, count: allResults.length, posts: allResults };
+    // Graceful degradation: search all platforms, report which ones failed
+    const perPlatform = await service.searchAllPlatforms(query, limit);
+    const allPosts: any[] = [];
+    const platformsSearched: string[] = [];
+    const platformsSkipped: Array<{ platform: string; reason: string }> = [];
+
+    const availablePlatforms = service.getAvailablePlatforms();
+
+    for (const [p, posts] of Object.entries(perPlatform)) {
+      if (posts && posts.length > 0) {
+        allPosts.push(...posts);
+        platformsSearched.push(p);
+      } else if (posts && posts.length === 0) {
+        platformsSearched.push(p); // searched but no results
+      }
+    }
+
+    // Detect platforms that were expected but missing from results
+    for (const p of Object.keys(availablePlatforms)) {
+      if (!(p in perPlatform)) {
+        platformsSkipped.push({ platform: p, reason: "Search failed or platform unavailable" });
+      }
+    }
+
+    // Sort by relevance
+    allPosts.sort((a: any, b: any) => {
+      const aEng = (a.engagement?.likes || 0) + (a.engagement?.comments || 0);
+      const bEng = (b.engagement?.likes || 0) + (b.engagement?.comments || 0);
+      return bEng - aEng;
+    });
+
+    return {
+      platform: 'combined',
+      query,
+      count: allPosts.slice(0, limit).length,
+      posts: allPosts.slice(0, limit),
+      platforms_searched: platformsSearched,
+      ...(platformsSkipped.length > 0 && { platforms_skipped: platformsSkipped }),
+    };
   }
 
-  const posts = await service.searchContent(platform as PlatformType, query, limit);
-  return { platform, query, count: posts.length, posts };
+  try {
+    const posts = await service.searchContent(platform as PlatformType, query, limit);
+    return { platform, query, count: posts.length, posts, platforms_searched: [platform] };
+  } catch (e: any) {
+    return {
+      platform,
+      query,
+      count: 0,
+      posts: [],
+      platforms_searched: [],
+      platforms_skipped: [{ platform, reason: e.message || "Platform unavailable" }],
+    };
+  }
 }
 
 export async function getContentComments(service: UnifiedSocialMediaService, args: CommentsArgs) {

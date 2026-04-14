@@ -2,12 +2,28 @@
 
 All notable changes to the CrowdListen Harness.
 
+## [2.3.0] — 2026-04-14
+
+### Added
+- `entity_id` and `signal_type` fields on `submit_observation` item schema
+- `project_id` field on `submit_observation` (required for JWT auth)
+- `compile_knowledge` and `list_topics` moved to core pack (were orphaned — implemented but invisible)
+- Structured error responses with `error`, `suggestion`, and `docs` fields (GBrain pattern)
+- `platforms_searched` and `platforms_skipped` fields on `search_content` results (graceful degradation)
+
+### Changed
+- `continue_analysis` now uses SSE stream parsing (was returning raw stream data)
+- `submit_observation` accepts user JWT alongside connector API key
+- `crowd_research` accepts user JWT alongside agent API key (no tier limits for JWT users)
+
+### Removed
+- `setup_connector` removed from observations pack (connector setup via web UI only)
+
 ## [Unreleased] - 2026-04-09
 
 ### Added
-- **Observations skill pack**: New `observations` pack with 3 canonical tools for the observation intelligence pipeline
+- **Observations skill pack**: New `observations` pack with 2 canonical tools for the observation intelligence pipeline
 - **`submit_observation`** agent tool: Proxies to `POST /api/observations/submit` for agents to submit conversation observations
-- **`setup_connector`** tool: Register a new observation connector via `POST /api/connectors`, returns API key for agent integration
 - **`manage_entities`** tool: Moved to observations pack — CRUD for tracked entities with project linking and entity-aware observation tracking
 - **`recall` observation modes**: Observation feed and theme intelligence are accessible via `recall` — pass `observations: true` (proxies to `GET /api/observations/feed`) or `themes: true` (proxies to `GET /api/observations/themes`). Backward-compatible aliases `get_observation_feed` and `get_theme_insights` route to `recall` with these flags set.
 

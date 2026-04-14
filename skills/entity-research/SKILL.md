@@ -34,6 +34,109 @@ Automated entity intelligence — the system for tracking companies, products, c
 
 ---
 
+## Entity Data Model
+
+Fields agents can read and write via `manage_entities`:
+
+| Field | Type | Writable | Description |
+|-------|------|----------|-------------|
+| `name` | string | create | Entity name |
+| `url` | string | create/update | Company or product URL |
+| `tags` | string[] | create/update | Relationship tags: `"competitor"`, `"ours"`, `"partner"`, `"product"`, `"market"` |
+| `description` | text | update | What the entity does (1-2 sentences, factual — not marketing copy) |
+| `industry` | text | update | Industry classification (e.g. "Cybersecurity", "Developer Tools") |
+| `keywords` | string[] | update | Search keywords for social listening (8-15 terms: brand names, handles, product names, common misspellings) |
+| `enrichment_status` | string | update | `"pending"` → `"enriching"` → `"enriched"` / `"failed"` |
+| `platforms` | string[] | create/update | Platforms to monitor: `reddit`, `twitter`, `youtube`, `tiktok`, etc. |
+| `official_channels` | object | create/update | `{ blog_rss, twitter_handle, youtube_channel }` |
+| `config` | object | update | Scheduling, resolved handles, research state (see Research Scheduling section) |
+
+---
+
+## Workflow 0: Entity Enrichment
+
+**Purpose**: When new entities are created, they start with `enrichment_status: "pending"` and no description, industry, or keywords. This workflow teaches you to enrich them using your web search capability.
+
+**This is the first thing to check when the entity-research skill is active.** Pending entities need enrichment before they can be effectively researched.
+
+### When to Run
+
+- After any `manage_entities({ action: "list" })` reveals entities with `enrichment_status: "pending"`
+- Proactively at session start: check for unenriched entities
+- When a user just created entities and expects them to be filled in
+
+### Process
+
+1. **Find pending entities**:
+   ```tool
+   manage_entities({ action: "list" })
+   ```
+   Filter for entities where `enrichment_status === "pending"`.
+
+2. **For each pending entity**, research it using your web search:
+   - Search for `"{entity.name}"` — use the entity URL if available for disambiguation
+   - Extract: what the company/product does, what industry it's in, what terms people use to discuss it
+   - If the entity has a `url`, that's the strongest signal for disambiguation
+
+3. **Extract structured fields**:
+   - **description**: 1-2 factual sentences about what the entity does. NOT marketing copy. Example: "Varonis is a data security platform that monitors file access, detects threats to sensitive data, and automates remediation across cloud and on-premise environments." NOT: "Varonis is a world-leading innovative data security solution."
+   - **industry**: Single industry classification. Examples: "Cybersecurity", "Developer Tools", "E-commerce", "Social Media"
+   - **keywords**: 8-15 searchable terms. Include: brand name variations, product names, founder names if well-known, common abbreviations, relevant subreddit/handle names. Example for Varonis: `["Varonis", "Varonis Systems", "VRNS", "data security", "data protection", "file access monitoring", "DatAdvantage", "r/cybersecurity", "@varaboris"]`
+   - **tags**: Suggest tags based on context if the entity has none. A competitor? A partner? A product?
+
+4. **Write enrichment back**:
+   ```tool
+   manage_entities({
+     action: "update",
+     entity_id: "{entity.id}",
+     description: "{extracted description}",
+     industry: "{extracted industry}",
+     keywords: [{extracted keywords}],
+     tags: [{existing tags + any suggested new ones}],
+     enrichment_status: "enriched"
+   })
+   ```
+
+5. **If enrichment fails** (entity too obscure, ambiguous name, no web results):
+   ```tool
+   manage_entities({
+     action: "update",
+     entity_id: "{entity.id}",
+     enrichment_status: "failed"
+   })
+   ```
+   Explain to the user what went wrong and suggest they add a URL or more context.
+
+### Quality Checks
+
+| Check | Pass Criteria | Fail Action |
+|-------|---------------|-------------|
+| Description factual | No superlatives ("leading", "best-in-class", "innovative") | Rewrite as factual statement |
+| Description length | 1-2 sentences, under 200 characters | Trim to essential facts |
+| Keywords searchable | Terms people actually type into search | Remove generic terms ("software", "company") |
+| Keywords count | 8-15 terms | Add more specific terms or trim generic ones |
+| Industry specific | Single classification, not a list | Pick the primary industry |
+| No hallucination | All facts verifiable from web search results | Only include confirmed information |
+
+### Example
+
+Entity: `{ name: "Cursor", url: "cursor.com", tags: ["competitor"], enrichment_status: "pending" }`
+
+After web search and extraction:
+```tool
+manage_entities({
+  action: "update",
+  entity_id: "abc-123",
+  description: "Cursor is an AI-powered code editor built on VS Code that uses LLMs to help developers write, edit, and understand code faster.",
+  industry: "Developer Tools",
+  keywords: ["Cursor", "Cursor IDE", "Cursor editor", "Anysphere", "AI code editor", "cursor.com", "@cursor_ai", "r/cursor", "r/cursorAI", "VS Code fork"],
+  tags: ["competitor"],
+  enrichment_status: "enriched"
+})
+```
+
+---
+
 ## Decision Framework: When to Use This Skill
 
 Before starting entity research, decide whether this skill is the right tool.
