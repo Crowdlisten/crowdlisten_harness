@@ -12,13 +12,13 @@ Technical reference for all CrowdListen Harness MCP tools (20 canonical tools ac
 
 ---
 
-## Canonical Tool Summary (20 tools)
+## Canonical Tool Summary (19 tools)
 
 | Pack | Tools | Count |
 |------|-------|-------|
 | Core (always active) | `skills`, `save`, `recall`, `compile_knowledge`, `list_topics` | 5 |
 | Planning & Tasks | `list_tasks`, `create_task`, `complete_task` | 3 |
-| Social Listening | `search_content`, `get_content_comments`, `get_trending_content`, `platform_status`, `extract_url` | 5 |
+| Social Listening | `search_content`, `get_content_comments`, `get_trending_content`, `platform_status` | 4 |
 | Audience Analysis | `analyze_content` | 1 |
 | Analysis Engine | `run_analysis`, `continue_analysis`, `get_analysis`, `list_analyses`, `generate_specs` | 5 |
 | Crowd Intelligence | `crowd_research` | 1 |
@@ -201,16 +201,6 @@ Check platform availability and connectivity health.
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `diagnose` | No | Run full health check (default: `false`) |
-
-### `extract_url`
-
-Extract content from any URL using vision (screenshot + LLM analysis).
-
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `url` | Yes | URL to extract from |
-| `mode` | No | `posts`, `comments`, `raw` (default: `posts`) |
-| `limit` | No | Max items (1-50, default 10) |
 
 ---
 

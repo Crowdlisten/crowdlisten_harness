@@ -800,10 +800,6 @@ export async function handleTool(
       return json({ tasks: data, count: data?.length || 0, board_id: boardId });
     }
 
-    // Legacy alias — route to list_tasks with task_id
-    case "get_task":
-      return handleTool(sb, userId, "list_tasks", { task_id: args.task_id });
-
     case "create_task": {
       // Use global board if no board_id specified
       let boardId = args.board_id as string | undefined;
@@ -1036,10 +1032,6 @@ export async function handleTool(
       return json({ task_id: taskId, status: "done" });
     }
 
-    // Legacy alias — route to complete_task with progress=true
-    case "log_progress":
-      return handleTool(sb, userId, "complete_task", { task_id: args.task_id, summary: args.message, progress: true });
-
     // ── Delete ────────────────────────────────────────────────
     case "delete_task": {
       const { error } = await sb
@@ -1048,45 +1040,6 @@ export async function handleTool(
         .eq("id", args.task_id as string);
       if (error) throw new Error(error.message);
       return json({ deleted_task_id: args.task_id, status: "deleted" });
-    }
-
-    // ── Migration ─────────────────────────────────────────────
-    case "migrate_to_global_board": {
-      // Get or create global board
-      const globalBoard = await getOrCreateGlobalBoard(sb, userId);
-
-      // Get all tasks from ALL boards (except global board)
-      const { data: allTasks, error: tasksErr } = await sb
-        .from("kanban_cards")
-        .select("id, title, status, board_id")
-        .eq("user_id", userId)
-        .neq("board_id", globalBoard.id);
-
-      if (tasksErr) throw new Error(tasksErr.message);
-      if (!allTasks || allTasks.length === 0) {
-        return json({ migrated: 0, message: "No tasks to migrate", global_board_id: globalBoard.id });
-      }
-
-      // Move each task to global board
-      let migrated = 0;
-      for (const task of allTasks) {
-        const colId = await getColumnByStatus(sb, globalBoard.id, task.status || "todo");
-        if (!colId) continue;
-
-        const { error: updateErr } = await sb
-          .from("kanban_cards")
-          .update({ board_id: globalBoard.id, column_id: colId })
-          .eq("id", task.id);
-
-        if (!updateErr) migrated++;
-      }
-
-      return json({
-        migrated,
-        total_found: allTasks.length,
-        global_board_id: globalBoard.id,
-        status: "migration_complete",
-      });
     }
 
     // ── Start Session ─────────────────────────────────────────
@@ -1422,17 +1375,6 @@ export async function handleTool(
       });
     }
 
-    case "get_context_blocks": {
-      const blocks = getBlocks();
-      return json({ count: blocks.length, blocks });
-    }
-
-    case "recommend_skills": {
-      const blocks = getBlocks();
-      const skills = await matchSkills(blocks);
-      return json({ skills });
-    }
-
     // ─── Skill Discovery Tools ──────────────────────────────────────────────
     case "search_skills": {
       // Context-driven discovery mode
@@ -1551,13 +1493,6 @@ export async function handleTool(
     }
 
     // ── Core Always-On Tools ─────────────────────────────────────
-    // Legacy aliases — route to `skills` handler
-    case "list_skill_packs":
-      return handleTool(sb, userId, "skills", { action: "list", include_virtual: args.include_virtual });
-
-    case "activate_skill_pack":
-      return handleTool(sb, userId, "skills", { action: "activate", pack_id: args.pack_id });
-
     case "save": {
       // ── Route to absorbed handlers based on params ──
       if (args.folder) {
@@ -2019,33 +1954,6 @@ export async function handleTool(
         });
       } catch (err: any) {
         return json({ error: `Sync failed: ${err?.message || err}` });
-      }
-    }
-
-    // Legacy: publish_context
-    case "publish_context": {
-      const pageId = (args.memory_id || args.page_id) as string;
-      const teamId = args.team_id as string;
-
-      if (!pageId || !teamId) {
-        return json({ error: "Missing required parameters: page_id (or memory_id), team_id" });
-      }
-
-      try {
-        const { error } = await sb
-          .from("pages")
-          .update({
-            is_published: true,  // publish flag
-          })
-          .eq("id", pageId)
-          .eq("user_id", userId);
-
-        // Note: publish to team functionality preserved — metadata tracks publish state
-        if (error) throw error;
-
-        return json({ published: true, page_id: pageId, team_id: teamId });
-      } catch (err: any) {
-        return json({ error: `Publish failed: ${err?.message || err}` });
       }
     }
 

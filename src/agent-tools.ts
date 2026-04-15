@@ -1,7 +1,7 @@
 /**
  * Agent-Proxied Tools — Tools that proxy to agent.crowdlisten.com
  *
- * 4 skill packs, 11 tools. Each tool calls the agent backend via
+ * 5 groups, 10 tools. Each tool calls the agent backend via
  * the shared agent-proxy helpers.
  */
 
@@ -151,54 +151,7 @@ export const AGENT_TOOLS = [
     },
   },
 
-  // ── Insight Compiler (2 tools) ──────────────────────────────────────
-  {
-    name: "get_user_context",
-    description:
-      "[Insight Compiler] Search synthesized user feedback by topic. Returns insight wiki pages matching the query — themes, severity, evidence quotes, and trends compiled from connected channels.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        topic: {
-          type: "string",
-          description: "Topic to search for (e.g., 'pricing', 'onboarding', 'mobile app bugs')",
-        },
-        project_id: {
-          type: "string",
-          description: "Optional project UUID to scope search",
-        },
-        limit: {
-          type: "number",
-          description: "Max results (default 10, max 50)",
-        },
-      },
-      required: ["topic"],
-    },
-  },
-  {
-    name: "get_recent_insights",
-    description:
-      "[Insight Compiler] Get recently updated insight pages — synthesized user feedback themes from the last N days. Shows what's trending in user feedback across all connected channels.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        days: {
-          type: "number",
-          description: "Look back N days (default 7, max 90)",
-        },
-        project_id: {
-          type: "string",
-          description: "Optional project UUID to scope results",
-        },
-        limit: {
-          type: "number",
-          description: "Max results (default 20, max 50)",
-        },
-      },
-    },
-  },
-
-  // ── Observations & Intelligence (3 tools) ────────────────────────────
+  // ── Observations & Intelligence (1 tool) ────────────────────────────
   {
     name: "submit_observation",
     description:
@@ -235,39 +188,6 @@ export const AGENT_TOOLS = [
       required: ["observations"],
     },
   },
-  {
-    name: "get_observation_feed",
-    description:
-      "[Observations] Get recent observations for a project. Shows the raw signal flowing in from agents, connectors, and channel bridges.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        project_id: { type: "string", description: "Project UUID" },
-        type: {
-          type: "string",
-          enum: ["feature_request", "bug_report", "pain_point", "praise", "question", "competitive_intel", "general"],
-          description: "Filter by observation type",
-        },
-        days: { type: "number", description: "Look back N days (default 7, max 90)" },
-        limit: { type: "number", description: "Max results (default 50, max 200)" },
-      },
-      required: ["project_id"],
-    },
-  },
-  {
-    name: "get_theme_insights",
-    description:
-      "[Observations] Get clustered themes from observations — synthesized intelligence showing what topics are trending, their severity (P0/P1/P2), and trend direction (growing/stable/declining).",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        project_id: { type: "string", description: "Project UUID" },
-        limit: { type: "number", description: "Max themes (default 20)" },
-      },
-      required: ["project_id"],
-    },
-  },
-
   // ── Entity Tracking (1 tool) ──────────────────────────────────────────
   {
     name: "manage_entities",
@@ -318,49 +238,6 @@ export const AGENT_TOOLS = [
         },
       },
       required: ["action"],
-    },
-  },
-
-  // ── Task Execution (2 tools) ──────────────────────────────────────────
-  {
-    name: "execute_task",
-    description:
-      "[Execution] Trigger server-side AI agent execution for a task. The agent runs on the CrowdListen backend using the specified executor (AMP, Claude Code, Codex, Gemini). Returns a process_id to poll with get_execution_status.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        session_id: { type: "string", description: "Session UUID (from claim_task or start_session)" },
-        prompt: { type: "string", description: "Prompt/instructions for the AI agent to execute" },
-        executor: {
-          type: "string",
-          enum: ["CLAUDE_CODE", "CODEX", "GEMINI_CLI", "AMP"],
-          description: "AI agent executor to use (default: AMP)",
-        },
-        cwd: { type: "string", description: "Working directory for execution (optional)" },
-        auto_approve: {
-          type: "boolean",
-          description: "Auto-approve tool calls without human confirmation (default: false)",
-        },
-        allowed_tools: {
-          type: "array",
-          items: { type: "string" },
-          description: "Restrict which tools the agent can use (optional)",
-        },
-        context: { type: "string", description: "Additional context to prepend to the prompt (optional)" },
-      },
-      required: ["session_id", "prompt"],
-    },
-  },
-  {
-    name: "get_execution_status",
-    description:
-      "[Execution] Get the status and recent logs of a server-side AI agent execution. Returns process status (running/completed/failed/killed) and the last 50 log entries.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        process_id: { type: "string", description: "Process UUID from execute_task" },
-      },
-      required: ["process_id"],
     },
   },
 
@@ -583,30 +460,7 @@ export async function handleAgentTool(
       );
     }
 
-    // Legacy aliases — route to merged handlers
-    case "crowd_research_status": {
-      const result = await agentGet(
-        `/api/agents/analyze/${args.job_id}`,
-        apiKey
-      );
-      return JSON.stringify(result, null, 2);
-    }
-
-    case "register_agent": {
-      const result = await agentPost(
-        "/api/agents/register",
-        { name: args.name, capabilities: args.capabilities, executor: args.executor },
-        apiKey
-      );
-      return JSON.stringify(result, null, 2);
-    }
-
-    case "get_capabilities": {
-      const result = await agentGet("/api/agents/capabilities", apiKey);
-      return JSON.stringify(result, null, 2);
-    }
-
-    // ── Insight Compiler ─────────────────────────────────────
+    // ── Insight Compiler (absorbed into recall — handlers kept for routing) ──
     case "get_user_context": {
       const params = new URLSearchParams();
       if (args.topic) params.set("topic", args.topic as string);
