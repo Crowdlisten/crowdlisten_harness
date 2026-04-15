@@ -1,0 +1,16 @@
+{
+  "name": "@crowdlisten/sdk",
+  "version": "1.0.0",
+  "description": "CrowdListen SKILL.md SDK — turn any agent into a crowd intelligence CLI",
+  "homepage": "https://crowdlisten.com",
+  "compatibility": {
+    "claude_code": "full",
+    "openclaw": "full",
+    "codex": "full",
+    "chatgpt": "mcp_preferred",
+    "claude_desktop": "mcp_preferred",
+    "cursor": "mcp_preferred",
+    "gemini_cli": "mcp_preferred",
+    "amp": "mcp_preferred"
+  }
+}
