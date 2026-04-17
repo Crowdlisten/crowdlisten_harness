@@ -2,6 +2,11 @@
 
 All notable changes to the CrowdListen Harness.
 
+## [2.4.0] — 2026-04-16
+
+### Added
+- **`autopilot-research` skill pack** (`skills/autopilot-research/SKILL.md`): Automated research compilation — track topics across platforms, store raw data, and maintain always-current KB documents with periodic crawl jobs.
+
 ## [2.3.0] — 2026-04-14
 
 ### Added
