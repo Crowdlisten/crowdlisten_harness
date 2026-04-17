@@ -64,15 +64,34 @@ Use the decomposition pipeline for comprehensive multi-platform research:
 ```
 run_analysis({
   question: "[research question]",
-  platforms: ["reddit", "twitter", "news"]
+  platforms: ["reddit", "twitter", "hackernews", "news", "youtube"]
 })
 ```
+
+**Available platforms** (12 total):
+
+| Platform | API | Auth Required | Cost |
+|----------|-----|---------------|------|
+| reddit | Exa + Reddit OAuth | — | Existing |
+| twitter | Exa | — | Existing |
+| hackernews | Algolia HN Search | None | Free |
+| bluesky | AT Protocol | None | Free |
+| youtube | YouTube Data API v3 | `YOUTUBE_API_KEY` | Free (100/day) |
+| tiktok | ScrapeCreators | `SCRAPECREATORS_API_KEY` | $47/mo shared |
+| instagram | ScrapeCreators | Same key | Same |
+| threads | ScrapeCreators | Same key | Same |
+| producthunt | GraphQL API v2 | `PRODUCTHUNT_ACCESS_TOKEN` | Free |
+| github | GitHub API | `GITHUB_TOKEN` | Existing |
+| news | Exa | — | Existing |
+| xiaohongshu | Visual extraction | — | Existing |
+
+Platforms without required API keys are automatically skipped. Exa fallbacks are used for YouTube and TikTok when their API keys are missing.
 
 The system will:
 1. Break the goal into platform-specific subtasks
 2. Run independent platform searches in parallel
 3. Store all raw search results in the evidence database
-4. Compile findings into a single KB document with platform-annotated sections
+4. Compile findings into a KB document with source-attributed citations
 
 ### Step 3: Set Up Periodic Tracking
 
@@ -97,7 +116,9 @@ manage_entities({
 The scheduler will automatically:
 - Crawl configured platforms at the specified interval (default: weekly)
 - Store new raw results with deduplication
-- Merge new findings into the existing KB document
+- Route findings to the best KB folder/document using LLM classification
+- Merge new findings into existing documents (or create new ones)
+- Preserve source citations with platform, author, date, and engagement
 - Update the document's Data Quality section
 
 ### Step 4: Review Updates
@@ -150,25 +171,36 @@ manage_entities({
 
 ---
 
+## KB Folder Routing
+
+New findings are automatically routed to the best location in your knowledge base:
+
+1. **Merge** — If an existing document already covers the topic, new evidence is merged in
+2. **Create in folder** — If a matching folder exists (e.g., `pain-points/`), a new doc is created there
+3. **Default** — Falls back to `research/{slug}` if nothing matches
+
+This means research compounds across crawl cycles instead of creating duplicate documents.
+
+---
+
 ## KB Document Structure
 
-The compiled KB document follows this structure:
+The compiled KB document follows this structure with inline source citations:
 
 ```markdown
 # Research: [Topic]
 *Last updated: [timestamp]*
 
-## Reddit Findings
-[Evidence with source URLs, engagement scores, dates]
+## [Theme 1]
+> "Key finding or quote from the source"
+> — [Platform] · @author · 2026-04-15 · 142 upvotes
+> [Source](url)
 
-## Twitter/X Findings
-[Evidence with source URLs, engagement scores, dates]
+Additional analysis and context...
+*8 sources · Last updated: 2026-04-15*
 
-## News/Web Findings
-[Evidence with source URLs, dates]
-
-## Cross-Platform Synthesis
-[Integrated analysis across all platforms]
+## [Theme 2]
+...
 
 ## Data Quality
 - Total sources: N
@@ -177,8 +209,8 @@ The compiled KB document follows this structure:
 - Last crawl: [timestamp]
 ```
 
-Each update merges new evidence into existing sections, removes outdated info,
-and preserves the overall document quality.
+Findings are grouped by theme (not by platform). Each update merges new evidence,
+preserves existing citations, removes outdated info, and maintains document quality.
 
 ---
 
@@ -199,7 +231,7 @@ User: "Monitor what people think about Cursor AI"
 ```
 run_analysis({
   question: "What do developers think about Cursor AI? Focus on productivity, pricing, and comparison with alternatives.",
-  platforms: ["reddit", "twitter", "github", "news"]
+  platforms: ["reddit", "hackernews", "twitter", "github", "youtube", "news"]
 })
 ```
 
