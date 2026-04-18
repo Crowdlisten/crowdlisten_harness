@@ -443,6 +443,22 @@ export const TOOLS = [
     },
   },
 
+  {
+    name: "decompose_goal",
+    description:
+      "Break a complex goal into subtasks with dependencies. Returns a structured plan and optionally executes it. Use for multi-step research, analysis, or product workflows.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        goal: { type: "string", description: "The goal to decompose into subtasks" },
+        project_id: { type: "string", description: "Project context (optional)" },
+        max_subtasks: { type: "number", description: "Max subtasks 2-7 (default 5)" },
+        auto_execute: { type: "boolean", description: "Execute immediately after planning (default false)" },
+      },
+      required: ["goal"],
+    },
+  },
+
   // ── Wiki tool definitions removed — absorbed into save/recall ──────────────
   // Backward-compatible aliases are handled in TOOL_ALIASES (see index.ts)
 
@@ -1030,6 +1046,27 @@ export async function handleTool(
       }
 
       return json({ task_id: taskId, status: "done" });
+    }
+
+    // ── Decompose Goal (proxy to agent backend) ─────────────
+    case "decompose_goal": {
+      try {
+        const { requireApiKey, agentPost: agPost } = await import("./agent-proxy.js");
+        const apiKey = requireApiKey();
+        const result = await agPost(
+          "/agent/v1/hosted/tasks/decompose",
+          {
+            goal: args.goal,
+            project_id: args.project_id || null,
+            max_subtasks: args.max_subtasks || 5,
+            auto_execute: args.auto_execute ?? false,
+          },
+          apiKey
+        );
+        return json(result);
+      } catch (err: any) {
+        return json({ error: `Decomposition failed: ${err?.message || err}` });
+      }
     }
 
     // ── Delete ────────────────────────────────────────────────
