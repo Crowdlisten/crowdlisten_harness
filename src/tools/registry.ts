@@ -71,14 +71,14 @@ export function initializeRegistry(skillsDir: string): void {
     triggers: ["save", "remember", "recall", "knowledge", "context", "wiki", "page", "notes", "compile", "topics"],
   });
 
-  // Planning — task management (3 canonical tools)
+  // Planning — task management (4 canonical tools)
   // Consolidated: claim_task absorbed into list_tasks, execute_task/get_execution_status absorbed into complete_task
   packs.set("planning", {
     id: "planning",
     name: "Planning & Tasks",
-    description: "Task board for agent coordination — create, claim, and complete tasks. Trigger remote agent execution.",
-    toolNames: ["list_tasks", "create_task", "complete_task"],
-    triggers: ["plan", "task", "milestone", "roadmap", "backlog", "kanban", "board", "execute"],
+    description: "Task board for agent coordination — create, claim, complete tasks, and decompose complex goals into subtasks.",
+    toolNames: ["list_tasks", "create_task", "complete_task", "decompose_goal"],
+    triggers: ["plan", "task", "milestone", "roadmap", "backlog", "kanban", "board", "execute", "decompose", "break down", "subtasks", "workflow"],
   });
 
   // Social listening (5 tools)
