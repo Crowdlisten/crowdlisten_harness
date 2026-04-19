@@ -8,3 +8,4 @@ dist/
 *.key
 .secret*
 coverage/
+.gstack/

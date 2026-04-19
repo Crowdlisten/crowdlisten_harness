@@ -1,7 +1,7 @@
 ---
 name: crowdlisten
 description: Audience intelligence, social listening, and planning for AI agents
-version: 2.2.0
+version: 2.3.0
 user-invocable: false
 metadata:
   openclaw:
@@ -22,15 +22,15 @@ Audience intelligence, social listening, planning, and context extraction for AI
 
 ## What It Does
 
-CrowdListen Harness is a single MCP gateway to 21 canonical tools across 7 skill packs (plus 16 backward-compatible aliases):
+CrowdListen Harness is a single MCP gateway to 22 canonical tools across 7 skill packs (plus 16 backward-compatible aliases and 17 SKILL.md workflow packs):
 
-- **Core** (3 tools, always on) — `skills`, `save`, `recall` (wiki_* tools and others are backward-compatible aliases for save/recall)
-- **Planning** (3 tools) — Task management, progress tracking, server-side agent execution
-- **Social Listening** (5 tools) — Search Reddit, YouTube, TikTok, Twitter, Instagram, Xiaohongshu
+- **Core** (5 tools, always on) — `skills`, `save`, `recall`, `compile_knowledge`, `list_topics`
+- **Planning** (4 tools) — Task management, progress tracking, server-side agent execution, goal decomposition
+- **Social Listening** (4 tools) — Search Reddit, YouTube, TikTok, Twitter, Instagram
 - **Audience Analysis** (1 tool) — Content analysis, opinion clustering, insight extraction
 - **Analysis** (5 tools) — Run audience analyses, generate specs from results
 - **Crowd Intelligence** (1 tool) — Context-enriched crowd research with async polling
-- **Observations** (3 tools) — Submit observations, manage connectors, track entities
+- **Observations** (2 tools) — Submit observations, manage tracked entities
 
 ## Quick Start
 

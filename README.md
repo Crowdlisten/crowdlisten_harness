@@ -27,7 +27,7 @@ One command. Your browser opens, you sign in, and your agents are configured aut
 npx @crowdlisten/harness login
 ```
 
-Auto-configures MCP for **Claude Code, Cursor, Gemini CLI, Codex, Amp, and OpenClaw**. No env vars, no JSON editing, no API keys to manage. Restart your agent after login.
+Auto-configures MCP for **Claude Code, Cursor, Gemini CLI, Codex, and Amp**. No env vars, no JSON editing, no API keys to manage. Restart your agent after login.
 
 ### Manual Setup
 
@@ -70,15 +70,15 @@ For remote access, use the HTTP transport:
 | **Submit observations** | Agents and bots submit raw feedback (feature requests, bugs, pain points, praise) that auto-classify into themes | `submit_observation` accepts user JWT or connector API keys. Observations support `entity_id` for entity tagging and `signal_type` for official vs. reception signals. |
 | **Plan and track work** | Tasks, execution plans, progress tracking, server-side execution | Your agent claims tasks, drafts plans with assumptions and risks, logs progress, triggers agent execution (Amp, Claude Code, Codex, Gemini CLI) and polls status |
 | **Run full analyses** | End-to-end crowd analysis with streaming results | `run_analysis` triggers the full pipeline on the backend; `continue_analysis` streams parsed follow-up responses |
-| **Crowd research** | Async multi-platform research with job polling | `crowd_research` dispatches deep research across Reddit, Twitter, Xiaohongshu, Moltbook, and web — poll status until complete |
+| **Crowd research** | Async multi-platform research with job polling | `crowd_research` dispatches deep research across Reddit, Twitter, Xiaohongshu, and web — poll status until complete |
 | **From harnesses to specs** | Turn harnesses into implementation-ready specs with evidence citations and acceptance criteria | Specs include evidence citations, acceptance criteria, and confidence scores |
-| **Extract from any website** | Screenshot any URL and get structured data back | Vision mode sends screenshots to an LLM — works on forums, paywalled sites, anything with a URL |
+| **Decompose goals** | Break complex goals into subtasks with dependencies | `decompose_goal` creates a structured plan with subtasks, optionally executing immediately |
 
 ## How It Works
 
 ![CrowdListen Pipeline — Raw Crowd Signals to Agent Delivery](docs/images/pipeline.jpg)
 
-Your agent starts with **5 core tools** and activates skill packs on demand (20 canonical tools total across all packs, plus 16 backward-compatible aliases). No restart required — new tools appear instantly via `tools/list_changed`.
+Your agent starts with **5 core tools** and activates skill packs on demand (22 canonical tools total across 7 packs, plus 16 backward-compatible aliases). No restart required — new tools appear instantly via `tools/list_changed`.
 
 **Task Execution** — Trigger server-side AI agent execution (Amp, Claude Code, Codex, Gemini CLI) and poll progress via MCP. Use `complete_task` with `execute: true` to dispatch work and `status: true` to track completion.
 
@@ -93,15 +93,15 @@ Your agent starts with **5 core tools** and activates skill packs on demand (20 
 | Pack | Tools | What it does |
 |------|:-----:|---|
 | **core** (always on) | 5 | Semantic recall, knowledge save, skill discovery, knowledge compilation, topic listing |
-| **social-listening** | 5 | Search Reddit, TikTok, YouTube, Twitter, Instagram, Xiaohongshu with structured results and engagement metrics |
+| **social-listening** | 4 | Search Reddit, TikTok, YouTube, Twitter, Instagram with structured results and engagement metrics |
 | **audience-analysis** | 1 | Opinion clustering, insight extraction, content analysis with configurable depth |
-| **planning** | 3 | Create tasks, list and filter tasks, mark complete with progress logging and agent execution |
+| **planning** | 4 | Create tasks, list and filter tasks, mark complete with progress logging, decompose goals into subtasks |
 | **analysis** | 5 | Run full analyses, continue with follow-ups, retrieve results, list history, generate specs |
 | **crowd-intelligence** | 1 | Async multi-platform crowd research with job polling |
 | **observations** | 2 | Submit entity-tagged observations from agents/bots, manage tracked entities (companies, competitors, products) |
 
-Plus 14 **workflow packs** that deliver expert methodology via SKILL.md when activated:
-- knowledge-base, competitive-analysis, content-strategy, content-creator, context-extraction, crowd-research, data-storytelling, entity-research, heuristic-evaluation, market-research-reports, multi-agent, spec-generation, user-stories, ux-researcher
+Plus 17 **workflow packs** that deliver expert methodology via SKILL.md when activated:
+- autopilot-research, competitive-analysis, content-creator, content-strategy, context-extraction, crowd-research, crowdlisten, data-storytelling, entity-research, heuristic-evaluation, knowledge-base, market-research-reports, multi-agent, spec-generation, task-planning, user-stories, ux-researcher
 
 Full tool reference: **[docs/TOOLS.md](docs/TOOLS.md)**
 
@@ -141,35 +141,37 @@ Supabase `pages` table is the source of truth. Local `.md` folders can be synced
 
 | Platform | Setup | Notes |
 |---|---|---|
-| Reddit | None | Works immediately — search, trending, comments |
+| Reddit | None | Works immediately -- search, trending, comments |
 | TikTok | `npx playwright install chromium` | Browser-based extraction via API interception |
 | Instagram | `npx playwright install chromium` | Browser-based extraction via API interception |
 | Xiaohongshu | `npx playwright install chromium` | Browser-based extraction via API interception |
 | Twitter/X | `TWITTER_USERNAME` + `TWITTER_PASSWORD` in `.env` | Works without login for public content; credentials enable additional features |
 | YouTube | `YOUTUBE_API_KEY` in `.env` | API key required |
-| Moltbook | `MOLTBOOK_API_KEY` in `.env` | API key required |
-| Web/Exa | None (agent-side) | Semantic search across forums, news, blogs — handled by agent backend |
-| Vision mode (any URL) | Any one of: `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, or `OPENAI_API_KEY` | Screenshots + LLM extraction — works on paywalled sites, forums, anything |
+| Web/Exa | None (agent-side) | Semantic search across forums, news, blogs -- available via `crowd_research` (handled by agent backend) |
 
 When a platform is unavailable, `search_content` with `platform: "all"` gracefully degrades — returning results from available platforms and a `platforms_skipped` field listing what's missing and why.
 
 ### Supported Agents
 
-**Auto-configured on login:** Claude Code, Cursor, Gemini CLI, Codex, Amp, OpenClaw
+**Auto-configured on login:** Claude Code, Cursor, Gemini CLI, Codex, Amp
 
-**Also works with (manual config):** Copilot, Droid, Qwen Code, OpenCode
+**Also works with (manual config):** OpenClaw, Copilot, Droid, Qwen Code, OpenCode
 
 ## CLI
 
 ```bash
 npx @crowdlisten/harness login          # Sign in + auto-configure agents
+npx @crowdlisten/harness logout         # Clear saved credentials
+npx @crowdlisten/harness whoami         # Show current user
 npx @crowdlisten/harness setup          # Re-run auto-configure
 npx @crowdlisten/harness serve          # Start HTTP server on :3848
+npx @crowdlisten/harness openapi        # Print OpenAPI 3.0 spec to stdout
 npx @crowdlisten/harness sync ~/kb      # One-shot sync local folder to pages
 npx @crowdlisten/harness watch ~/kb     # Auto-sync on file changes (Dropbox-style)
+npx @crowdlisten/harness context        # Launch skill pack dashboard (port 3847)
+npx @crowdlisten/harness context file   # Process a file through context pipeline
 
 npx crowdlisten search reddit "AI agents" --limit 20
-npx crowdlisten vision https://news.ycombinator.com --limit 10
 npx crowdlisten trending reddit --limit 10
 ```
 
