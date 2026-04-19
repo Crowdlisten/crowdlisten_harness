@@ -63,14 +63,14 @@ For remote access, use the HTTP transport:
 
 | Capability | What it does | How it works |
 |---|---|---|
-| **Search social platforms** | Search Reddit, YouTube, TikTok, Twitter/X, Instagram, Xiaohongshu from one tool | Returns structured posts with engagement metrics, timestamps, and author info — same format regardless of platform. When a platform is unavailable, results from other platforms still return with a `platforms_skipped` field explaining why. |
+| **Search social platforms** | Search 16+ platforms — Reddit, YouTube, TikTok, Twitter/X, Instagram, Xiaohongshu, Polymarket, Truth Social, Hacker News, Bluesky, Product Hunt, Threads, GitHub, and more | Returns structured posts with engagement metrics, timestamps, and author info — same format regardless of platform. Intelligent query planning auto-selects platforms by intent and generates platform-optimized queries. When a platform is unavailable, results from other platforms still return with a `platforms_skipped` field explaining why. |
 | **Compile organizational signal** | AI distills conversations into structured harnesses — themes, evidence, severity, and trends | AI groups comments by theme, scores sentiment, identifies competitive signals. `compile_knowledge` merges findings across analyses, detects contradictions, and ranks evidence with confidence scores. |
 | **Shared context layer** | Harnesses persist across agents and sessions — query via semantic search or browse directly | Your agent saves with `save` and retrieves with `recall`. Semantic search uses pgvector cosine similarity with keyword fallback. Browse pages, filter by path or tags, read activity logs, and sync local folders. |
 | **Track entities** | Define companies, competitors, and products as tracked entities with keywords and aliases | `manage_entities` supports full CRUD plus project linking. Entity IDs flow into observations for attribution — see what the crowd says about each competitor. |
 | **Submit observations** | Agents and bots submit raw feedback (feature requests, bugs, pain points, praise) that auto-classify into themes | `submit_observation` accepts user JWT or connector API keys. Observations support `entity_id` for entity tagging and `signal_type` for official vs. reception signals. |
 | **Plan and track work** | Tasks, execution plans, progress tracking, server-side execution | Your agent claims tasks, drafts plans with assumptions and risks, logs progress, triggers agent execution (Amp, Claude Code, Codex, Gemini CLI) and polls status |
 | **Run full analyses** | End-to-end crowd analysis with streaming results | `run_analysis` triggers the full pipeline on the backend; `continue_analysis` streams parsed follow-up responses |
-| **Crowd research** | Async multi-platform research with job polling | `crowd_research` dispatches deep research across Reddit, Twitter, Xiaohongshu, and web — poll status until complete |
+| **Crowd research** | Async multi-platform research with job polling | `crowd_research` dispatches deep research across 16+ platforms with intent-aware query planning and weighted RRF fusion — poll status until complete |
 | **From harnesses to specs** | Turn harnesses into implementation-ready specs with evidence citations and acceptance criteria | Specs include evidence citations, acceptance criteria, and confidence scores |
 | **Decompose goals** | Break complex goals into subtasks with dependencies | `decompose_goal` creates a structured plan with subtasks, optionally executing immediately |
 
@@ -93,7 +93,7 @@ Your agent starts with **5 core tools** and activates skill packs on demand (22 
 | Pack | Tools | What it does |
 |------|:-----:|---|
 | **core** (always on) | 5 | Semantic recall, knowledge save, skill discovery, knowledge compilation, topic listing |
-| **social-listening** | 4 | Search Reddit, TikTok, YouTube, Twitter, Instagram with structured results and engagement metrics |
+| **social-listening** | 4 | Search 16+ platforms (Reddit, TikTok, YouTube, Twitter, Instagram, Polymarket, Truth Social, etc.) with structured results and engagement metrics |
 | **audience-analysis** | 1 | Opinion clustering, insight extraction, content analysis with configurable depth |
 | **planning** | 4 | Create tasks, list and filter tasks, mark complete with progress logging, decompose goals into subtasks |
 | **analysis** | 5 | Run full analyses, continue with follow-ups, retrieve results, list history, generate specs |

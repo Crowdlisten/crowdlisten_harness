@@ -85,12 +85,12 @@ export function initializeRegistry(skillsDir: string): void {
   packs.set("social-listening", {
     id: "social-listening",
     name: "Social Listening",
-    description: "Search and retrieve content from social platforms — Reddit, Twitter, TikTok, YouTube, Instagram.",
+    description: "Search and retrieve content from social platforms — Reddit, Twitter, TikTok, YouTube, Instagram, Polymarket, Truth Social, and 16+ platforms.",
     toolNames: [
       "search_content", "get_content_comments", "get_trending_content",
       "platform_status",
     ],
-    triggers: ["reddit", "twitter", "tiktok", "social", "platform", "trending", "youtube", "instagram"],
+    triggers: ["reddit", "twitter", "tiktok", "social", "platform", "trending", "youtube", "instagram", "polymarket", "prediction", "truthsocial", "truth social"],
   });
 
   // Audience analysis (1 canonical tool)

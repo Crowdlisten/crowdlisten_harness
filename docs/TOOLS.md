@@ -254,7 +254,7 @@ Run an audience analysis on a project. Streams results via SSE.
 |-----------|----------|-------------|
 | `project_id` | Yes | Project UUID |
 | `question` | Yes | Research question |
-| `platforms` | No | Platforms to search (default: all) |
+| `platforms` | No | Platforms to search: reddit, youtube, tiktok, twitter, instagram, xiaohongshu, polymarket, truthsocial, hackernews, bluesky, producthunt, threads, github, news. Default: all (auto-selected by intent). |
 | `max_results` | No | Max results per platform (default 20) |
 
 ### `continue_analysis`
@@ -307,7 +307,7 @@ Research what the crowd says about a topic, or poll job status. Async -- returns
 |-----------|----------|-------------|
 | `action` | No | `"start"` or `"status"` (default: `"start"`) |
 | `query` | No | Research question (required for `start`) |
-| `platforms` | No | `reddit`, `twitter`, `xiaohongshu`, `web` |
+| `platforms` | No | `reddit`, `twitter`, `xiaohongshu`, `web`, `youtube`, `tiktok`, `instagram`, `hackernews`, `bluesky`, `producthunt`, `threads`, `github`, `polymarket`, `truthsocial`, `news`. Default: auto-selected by intent. |
 | `depth` | No | `quick` (~30s), `standard` (~90s), `deep` (~120s). Default: `standard`. |
 | `context` | No | Business context to enrich analysis (auto-recalled if omitted) |
 | `job_id` | No | Job ID to poll (required for `status`) |
@@ -410,7 +410,7 @@ The following old tool names still work when called by agents but are hidden fro
 |---------|------|-----------------|----------|
 | `core` | Core | 5 (always active) | save, remember, recall, knowledge, context, wiki, page, notes, compile, topics |
 | `planning` | Planning & Tasks | 4 | plan, task, milestone, roadmap, backlog, kanban, board, execute, decompose, subtasks |
-| `social-listening` | Social Listening | 4 | reddit, twitter, tiktok, social, platform, trending, youtube, instagram |
+| `social-listening` | Social Listening | 4 | reddit, twitter, tiktok, social, platform, trending, youtube, instagram, polymarket, prediction, truthsocial |
 | `audience-analysis` | Audience Analysis | 1 | analysis, sentiment, insight, opinion, audience, cluster, enrich |
 | `analysis` | Analysis Engine | 5 | analyze, research, question, spec, requirement, feature |
 | `crowd-intelligence` | Crowd Intelligence | 1 | crowd, research, investigate, discover |

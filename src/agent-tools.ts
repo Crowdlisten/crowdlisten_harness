@@ -36,7 +36,7 @@ export const AGENT_TOOLS = [
           type: "array",
           items: { type: "string" },
           description:
-            "Platforms to search: reddit, youtube, tiktok, twitter, instagram, xiaohongshu. Default: all.",
+            "Platforms to search: reddit, youtube, tiktok, twitter, instagram, xiaohongshu, polymarket, truthsocial, hackernews, bluesky, producthunt, threads, github, news. Default: all.",
         },
         max_results: {
           type: "number",
@@ -131,10 +131,10 @@ export const AGENT_TOOLS = [
           type: "array",
           items: {
             type: "string",
-            enum: ["reddit", "twitter", "xiaohongshu", "web"],
+            enum: ["reddit", "twitter", "xiaohongshu", "web", "youtube", "tiktok", "instagram", "hackernews", "bluesky", "producthunt", "threads", "github", "polymarket", "truthsocial", "news"],
           },
           description:
-            "Platforms to search. 'web' = Exa semantic search across forums, news, blogs. Default: all.",
+            "Platforms to search. 'web' = Exa semantic search across forums, news, blogs. 'polymarket' = prediction markets. Default: all (auto-selected by intent).",
         },
         depth: {
           type: "string",
@@ -226,7 +226,7 @@ export const AGENT_TOOLS = [
         platforms: {
           type: "array",
           items: { type: "string" },
-          description: "Platforms to track: reddit, twitter, youtube, tiktok, etc.",
+          description: "Platforms to track: reddit, twitter, youtube, tiktok, polymarket, truthsocial, hackernews, bluesky, etc.",
         },
         official_channels: {
           type: "object",

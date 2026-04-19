@@ -1,6 +1,6 @@
 # CrowdListen Harness -- Developer Guide
 
-This is the `@crowdlisten/harness` npm package -- a unified MCP server for AI agents. Version 2.3.0.
+This is the `@crowdlisten/harness` npm package -- a unified MCP server for AI agents. Version 2.5.0.
 
 ## Architecture Overview
 
