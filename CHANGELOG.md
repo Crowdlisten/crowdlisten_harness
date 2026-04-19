@@ -2,6 +2,20 @@
 
 All notable changes to the CrowdListen Harness.
 
+## [2.5.0] — 2026-04-18
+
+### Added
+- **16-platform search support** — `run_analysis`, `crowd_research`, and `manage_entities` now accept all 16 platforms: reddit, twitter, github, news, hackernews, youtube, bluesky, tiktok, instagram, producthunt, threads, polymarket, truthsocial, xiaohongshu, linkedin, web
+- **Intelligent search pipeline** — Backend now uses intent-aware query planning, weighted RRF fusion, semantic clustering, and progressive retrieval when `crowd_research` or `run_analysis` is invoked
+- **Polymarket platform** — Search prediction markets for real-money-backed forecasts and odds
+- **Truth Social platform** — Search posts via Mastodon-compatible public API
+- **Plugin manifests** — `.claude-plugin/plugin.json` for Claude Code marketplace, `gemini-extension.json` for Gemini CLI
+
+### Changed
+- Social-listening pack triggers now include `polymarket`, `prediction`, `truthsocial`
+- `crowd_research` platform enum expanded from 4 to 16 platforms
+- `docs/TOOLS.md` and `README.md` updated to reflect 16+ platform support
+
 ## [2.4.0] — 2026-04-16
 
 ### Added

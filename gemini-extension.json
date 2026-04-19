@@ -1,0 +1,10 @@
+{
+  "name": "crowdlisten",
+  "version": "2.5.0",
+  "description": "Crowd intelligence research across 16+ platforms with AI-powered search planning, weighted RRF ranking, and semantic clustering.",
+  "mcp_server": {
+    "command": "npx",
+    "args": ["@crowdlisten/harness"],
+    "transport": "stdio"
+  }
+}

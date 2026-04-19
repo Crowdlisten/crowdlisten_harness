@@ -210,6 +210,41 @@ wiki_log({
 ```
 
 
+## KB Page Principles
+
+Every page should be:
+
+1. **Structured** — machine-parseable sections (Summary, Key Findings, Sources,
+   Related), not prose dumps. Use markdown headers, bullet lists, and citation
+   blocks so agents can extract data programmatically.
+2. **Up-to-date** — content compounds over time. When new evidence arrives for an
+   existing page, MERGE it (add new findings, update source counts, refresh dates).
+   Never overwrite — always preserve existing evidence that is still valid.
+3. **Callable** — includes actionable data that agents and humans can use directly:
+   analysis links, source URLs, engagement metrics, confidence scores. A page
+   without links and metrics is a dead page.
+
+
+## Auto-Generated Pages
+
+After each analysis, the system writes findings to KB pages automatically:
+
+- `research/{topic-slug}` — full research findings with source citations
+- `themes/{theme-slug}` — individual theme pages that compound over time
+
+Each auto-generated page includes:
+- **Analysis link**: `[View analysis](/analyses/{id})`
+- **Source citations**: `[Platform] · @author · date · engagement [URL]`
+- **Structured sections**: Summary, Key Findings, Sources, Related
+
+When the same topic or theme is analyzed again, the system merges new findings
+into the existing page rather than creating duplicates. This is the "compounding"
+principle in action — each analysis makes the page richer.
+
+Agents can recall these pages via `recall({ query: "..." })` and use them as
+grounded context for content generation, spec writing, or strategic planning.
+
+
 ## Filing Rules: Path Conventions
 
 Every knowledge entry must be tagged consistently so that agents, the wiki, and
